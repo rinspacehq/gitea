@@ -32,15 +32,16 @@ concurrency:
   group: rinspace-release
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  packages: write
-  id-token: write
-  attestations: write
+permissions: {}
 
 jobs:
   container:
     if: github.repository == 'rinspacehq/gitea' && inputs.operation == 'build-candidate'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: rinspace-gitea-release
@@ -114,6 +115,9 @@ jobs:
 
   accept:
     if: github.repository == 'rinspacehq/gitea' && inputs.operation == 'accept-candidate'
+    permissions:
+      contents: write
+      packages: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: rinspace-gitea-release
