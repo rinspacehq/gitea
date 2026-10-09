@@ -10,7 +10,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +23,7 @@ import (
 
 	rinauth_model "gitea.dev/models/rinauth"
 	user_model "gitea.dev/models/user"
+	"gitea.dev/modules/json"
 )
 
 var (
