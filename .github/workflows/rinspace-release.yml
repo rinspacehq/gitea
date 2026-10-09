@@ -58,7 +58,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          if docker buildx imagetools inspect "ghcr.io/rinspacehq/gitea:$VERSION" >/dev/null 2>&1; then
+          if docker buildx imagetools inspect "ghcr.io/rinspacehq/gitea/runtime:$VERSION" >/dev/null 2>&1; then
             echo "The requested GHCR tag already exists and will not be overwritten." >&2
             exit 1
           fi
@@ -70,7 +70,7 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/rinspacehq/gitea:${{ inputs.version }}
+          tags: ghcr.io/rinspacehq/gitea/runtime:${{ inputs.version }}
           build-args: |
             GITEA_VERSION=${{ inputs.version }}
           labels: |
@@ -93,5 +93,5 @@ jobs:
             echo "- Source: \`$SOURCE_COMMIT\`"
             echo "- Version: \`$VERSION\`"
             echo "- Platform: \`linux/amd64\`"
-            echo "- Image: \`ghcr.io/rinspacehq/gitea@$DIGEST\`"
+            echo "- Image: \`ghcr.io/rinspacehq/gitea/runtime@$DIGEST\`"
           } >> "$GITHUB_STEP_SUMMARY"
