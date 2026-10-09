@@ -30,12 +30,16 @@ adoption remains pending until the separate protected rollout is complete.
 
 ## Build and publish
 
-The `rinspace-release` workflow is the only fork workflow allowed to publish a
-container. It is manual and accepts a full reviewed source commit plus an RC
-version. It verifies that the commit belongs to `rinspace-1.27`, builds from
-public source, refuses to overwrite an existing version tag, and publishes only to
-`ghcr.io/rinspacehq/gitea/runtime`. This separate public package avoids exposing
-the historical private `ghcr.io/rinspacehq/gitea` package or its build layers.
+The `rinspace-release` workflow is the only fork workflow allowed to publish or
+promote a container. Its `build-candidate` operation accepts a full reviewed
+source commit plus an RC version. It verifies that the commit belongs to
+`rinspace-1.27`, builds from public source, refuses to overwrite an existing
+version tag, and publishes only to `ghcr.io/rinspacehq/gitea/runtime`. Its
+`accept-candidate` operation requires the exact RC digest, copies that manifest
+to the final discovery tag, verifies that the digest stayed unchanged, and
+creates the matching Git tag at the same source commit. This separate public
+package avoids exposing the historical private `ghcr.io/rinspacehq/gitea`
+package or its build layers.
 
 The workflow rejects final version strings. Acceptance copies the exact
 candidate manifest to the final discovery tag, records the unchanged digest in

@@ -3,13 +3,29 @@ name: rinspace-release
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Build a public candidate or accept its exact manifest
+        required: true
+        default: build-candidate
+        type: choice
+        options:
+          - build-candidate
+          - accept-candidate
       source_commit:
         description: Full reviewed commit on rinspace-1.27
         required: true
         type: string
       version:
-        description: Candidate version such as v1.27.2-rinspace.1-rc.1
+        description: Candidate or accepted version
         required: true
+        type: string
+      candidate_version:
+        description: Existing RC tag when accepting a candidate
+        required: false
+        type: string
+      candidate_digest:
+        description: Exact existing OCI index digest when accepting a candidate
+        required: false
         type: string
 
 concurrency:
@@ -17,14 +33,14 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
   attestations: write
 
 jobs:
   container:
-    if: github.repository == 'rinspacehq/gitea'
+    if: github.repository == 'rinspacehq/gitea' && inputs.operation == 'build-candidate'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: rinspace-gitea-release
@@ -94,4 +110,79 @@ jobs:
             echo "- Version: \`$VERSION\`"
             echo "- Platform: \`linux/amd64\`"
             echo "- Image: \`ghcr.io/rinspacehq/gitea/runtime@$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  accept:
+    if: github.repository == 'rinspacehq/gitea' && inputs.operation == 'accept-candidate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: rinspace-gitea-release
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - name: Verify accepted candidate identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          VERSION: ${{ inputs.version }}
+          CANDIDATE_VERSION: ${{ inputs.candidate_version }}
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$VERSION" =~ ^v1\.27\.2-rinspace\.[1-9][0-9]*$ ]]
+          [[ "$CANDIDATE_VERSION" == "${VERSION}-rc."[1-9]* ]]
+          [[ "$CANDIDATE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git fetch origin refs/heads/rinspace-1.27:refs/remotes/origin/rinspace-1.27 --force
+          git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/rinspace-1.27
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${CANDIDATE_VERSION}" --jq .object.sha)" = "$SOURCE_COMMIT"
+          test "$(gh release view "$CANDIDATE_VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Copy the exact candidate manifest to the accepted tag
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          VERSION: ${{ inputs.version }}
+          CANDIDATE_VERSION: ${{ inputs.candidate_version }}
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repository=ghcr.io/rinspacehq/gitea/runtime
+          candidate="$repository@$CANDIDATE_DIGEST"
+          accepted="$repository:$VERSION"
+          candidate_actual="sha256:$(docker buildx imagetools inspect --raw "$candidate" | sha256sum | awk '{print $1}')"
+          test "$candidate_actual" = "$CANDIDATE_DIGEST"
+          if docker buildx imagetools inspect "$accepted" >/dev/null 2>&1; then
+            accepted_actual="sha256:$(docker buildx imagetools inspect --raw "$accepted" | sha256sum | awk '{print $1}')"
+            test "$accepted_actual" = "$CANDIDATE_DIGEST"
+          else
+            docker buildx imagetools create --tag "$accepted" "$candidate"
+            accepted_actual="sha256:$(docker buildx imagetools inspect --raw "$accepted" | sha256sum | awk '{print $1}')"
+            test "$accepted_actual" = "$CANDIDATE_DIGEST"
+          fi
+          existing_ref="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" --jq .object.sha 2>/dev/null || true)"
+          if [[ -n "$existing_ref" ]]; then
+            test "$existing_ref" = "$SOURCE_COMMIT"
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${VERSION}" -f sha="$SOURCE_COMMIT" >/dev/null
+          fi
+          {
+            echo "## Accepted Rinspace Gitea candidate"
+            echo
+            echo "- Source: \`$SOURCE_COMMIT\`"
+            echo "- Candidate: \`$CANDIDATE_VERSION\`"
+            echo "- Accepted version: \`$VERSION\`"
+            echo "- Exact image: \`$repository@$CANDIDATE_DIGEST\`"
           } >> "$GITHUB_STEP_SUMMARY"
