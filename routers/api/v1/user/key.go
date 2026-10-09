@@ -6,6 +6,7 @@ package user
 
 import (
 	std_ctx "context"
+	"fmt"
 	"net/http"
 
 	asymkey_model "gitea.dev/models/asymkey"
@@ -18,6 +19,7 @@ import (
 	"gitea.dev/routers/api/v1/repo"
 	"gitea.dev/routers/api/v1/utils"
 	asymkey_service "gitea.dev/services/asymkey"
+	auth_service "gitea.dev/services/auth"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
 )
@@ -213,6 +215,11 @@ func CreateUserPublicKey(ctx *context.APIContext, form api.CreateKeyOption, uid 
 	key, err := asymkey_model.AddPublicKey(ctx, uid, form.Title, content, 0, false)
 	if err != nil {
 		repo.HandleAddKeyError(ctx, err)
+		return
+	}
+	if err := auth_service.RegisterRinspacePersonalCredential(ctx, uid, fmt.Sprintf("ssh:%d", key.ID)); err != nil {
+		_ = asymkey_service.DeletePublicKey(ctx, ctx.Doer, key.ID)
+		ctx.APIErrorInternal(err)
 		return
 	}
 	apiLink := composePublicKeysAPILink()

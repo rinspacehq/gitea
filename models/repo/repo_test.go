@@ -6,6 +6,8 @@ package repo
 import (
 	"testing"
 
+	"gitea.dev/models/db"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
@@ -66,13 +68,29 @@ func TestWatchRepo(t *testing.T) {
 
 	repo := unittest.AssertExistsAndLoadBean(t, &Repository{ID: 3})
 	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	_, _ = db.DeleteByBean(t.Context(), &rincontrol_model.OutboxEvent{ActorUserID: user.ID, RepositoryID: repo.ID, EventType: "repository.watch.changed"})
 
 	assert.NoError(t, WatchRepo(t.Context(), user, repo, true))
 	unittest.AssertExistsAndLoadBean(t, &Watch{RepoID: repo.ID, UserID: user.ID})
+	count, err := db.GetEngine(t.Context()).Where("event_type=? AND actor_user_id=? AND repository_id=?", "repository.watch.changed", user.ID, repo.ID).Count(new(rincontrol_model.OutboxEvent))
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, count)
+	assert.NoError(t, WatchRepo(t.Context(), user, repo, true))
+	count, _ = db.GetEngine(t.Context()).Where("event_type=? AND actor_user_id=? AND repository_id=?", "repository.watch.changed", user.ID, repo.ID).Count(new(rincontrol_model.OutboxEvent))
+	assert.EqualValues(t, 1, count)
 	unittest.CheckConsistencyFor(t, &Repository{ID: repo.ID})
 
 	assert.NoError(t, WatchRepo(t.Context(), user, repo, false))
 	unittest.AssertNotExistsBean(t, &Watch{RepoID: repo.ID, UserID: user.ID})
+	count, _ = db.GetEngine(t.Context()).Where("event_type=? AND actor_user_id=? AND repository_id=?", "repository.watch.changed", user.ID, repo.ID).Count(new(rincontrol_model.OutboxEvent))
+	assert.EqualValues(t, 2, count)
+	unittest.CheckConsistencyFor(t, &Repository{ID: repo.ID})
+	_, err = db.Exec(t.Context(), `CREATE TRIGGER rin_control_test_outbox_failure BEFORE INSERT ON rin_control_outbox BEGIN SELECT RAISE(ABORT, 'injected outbox failure'); END`)
+	assert.NoError(t, err)
+	assert.Error(t, WatchRepo(t.Context(), user, repo, true))
+	unittest.AssertNotExistsBean(t, &Watch{RepoID: repo.ID, UserID: user.ID})
+	_, err = db.Exec(t.Context(), `DROP TRIGGER rin_control_test_outbox_failure`)
+	assert.NoError(t, err)
 	unittest.CheckConsistencyFor(t, &Repository{ID: repo.ID})
 }
 

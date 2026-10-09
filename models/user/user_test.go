@@ -12,6 +12,7 @@ import (
 
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/password/hash"
@@ -509,6 +510,23 @@ func TestUnfollowUser(t *testing.T) {
 	testSuccess(2, 2)
 
 	unittest.CheckConsistencyFor(t, &user_model.User{})
+}
+
+func TestFollowUserWritesExactlyOneOutboxEventPerChange(t *testing.T) {
+	assert.NoError(t, unittest.PrepareTestDatabase())
+	follower := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
+	followed := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	assert.NoError(t, user_model.UnfollowUser(t.Context(), follower.ID, followed.ID))
+	_, _ = db.DeleteByBean(t.Context(), &rincontrol_model.OutboxEvent{ActorUserID: follower.ID, TargetUserID: followed.ID, EventType: "user.follow.changed"})
+	assert.NoError(t, user_model.FollowUser(t.Context(), follower, followed))
+	assert.NoError(t, user_model.FollowUser(t.Context(), follower, followed))
+	count, err := db.GetEngine(t.Context()).Where("event_type=? AND actor_user_id=? AND target_user_id=?", "user.follow.changed", follower.ID, followed.ID).Count(new(rincontrol_model.OutboxEvent))
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, count)
+	assert.NoError(t, user_model.UnfollowUser(t.Context(), follower.ID, followed.ID))
+	count, err = db.GetEngine(t.Context()).Where("event_type=? AND actor_user_id=? AND target_user_id=?", "user.follow.changed", follower.ID, followed.ID).Count(new(rincontrol_model.OutboxEvent))
+	assert.NoError(t, err)
+	assert.EqualValues(t, 2, count)
 }
 
 func TestIsUserVisibleToViewer(t *testing.T) {

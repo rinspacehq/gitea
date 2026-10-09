@@ -461,6 +461,13 @@ func HandleSignOut(ctx *context.Context) {
 
 // SignOut sign out from login status
 func SignOut(ctx *context.Context) {
+	if ctx.Req.Header.Get("X-Rin-Parent-SID") != "" {
+		if err := auth_service.RevokeRinspaceWebParent(ctx, ctx.Req); err != nil {
+			ctx.Resp.Header().Set("Retry-After", "3")
+			ctx.HTTPError(http.StatusServiceUnavailable, "Rinspace logout is not confirmed")
+			return
+		}
+	}
 	if ctx.Doer != nil {
 		eventsource.GetManager().SendMessageBlocking(ctx.Doer.ID, &eventsource.Event{
 			Name: "logout",

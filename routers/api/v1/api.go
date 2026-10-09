@@ -1227,6 +1227,10 @@ func Routes() *web.Router {
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser), reqToken(), contextAuthenticatedUser(), checkTokenPublicOnly())
 
 		// Repositories (requires repo scope, org scope)
+		m.Get("/rinspace-social/user-follow", reqToken(), contextAuthenticatedUser(), tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser), user.GetRinspaceUserFollow)
+		m.Post("/rinspace-social/user-follow", reqToken(), contextAuthenticatedUser(), tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser), bind(api.UpdateRinspaceUserFollowOption{}), user.UpdateRinspaceUserFollow)
+
+		// Repositories (requires repo scope, org scope)
 		m.Post("/org/{org}/repos",
 			// FIXME: we need org in context
 			tokenRequiresScopes(auth_model.AccessTokenScopeCategoryOrganization, auth_model.AccessTokenScopeCategoryRepository),
@@ -1335,6 +1339,11 @@ func Routes() *web.Router {
 					})
 					m.Post("/priority", bind(api.UpdateBranchProtectionPriories{}), mustNotBeArchived, repo.UpdateBranchProtectionPriories)
 				}, reqToken(), reqAdmin())
+				m.Put("/rinspace-presentation", reqToken(), reqAdmin(), bind(api.UpdateRinspaceRepositoryPresentationOption{}), repo.UpdateRinspacePresentation)
+				m.Post("/rinspace-social", reqToken(), reqAdmin(), bind(api.UpdateRinspaceRepositorySocialOption{}), repo.UpdateRinspaceSocial)
+				m.Get("/rinspace-social", reqToken(), reqAdmin(), repo.GetRinspaceSocial)
+				m.Get("/rinspace-audit", reqToken(), reqAdmin(), repo.GetRinspaceAudit)
+				m.Post("/rinspace-permissions/repair", reqToken(), reqAdmin(), bind(api.RepairRinspaceRepositoryPermissionsOption{}), repo.RepairRinspacePermissions)
 				m.Group("/tags", func() {
 					m.Get("", repo.ListTags)
 					m.Get("/*", repo.GetTag)

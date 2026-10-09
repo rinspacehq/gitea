@@ -7,6 +7,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -123,6 +124,10 @@ func (o *OAuth2) userFromToken(ctx context.Context, tokenSHA string, store DataS
 		if uid != 0 {
 			store.GetData()["IsApiToken"] = true
 			store.GetData()["ApiTokenScope"] = accessTokenScope
+			if parsed, parseErr := oauth2_provider.ParseToken(tokenSHA, oauth2_provider.DefaultSigningKey); parseErr == nil {
+				store.GetData()[CredentialIDDataKey] = fmt.Sprintf("oauth:%d", parsed.GrantID)
+				store.GetData()["LoginMethod"] = OAuth2TokenMethodName
+			}
 		}
 		return user_model.GetUserByID(ctx, uid)
 	}
@@ -144,6 +149,8 @@ func (o *OAuth2) userFromToken(ctx context.Context, tokenSHA string, store DataS
 	}
 	store.GetData()["IsApiToken"] = true
 	store.GetData()["ApiTokenScope"] = t.Scope
+	store.GetData()[CredentialIDDataKey] = fmt.Sprintf("pat:%d", t.ID)
+	store.GetData()["LoginMethod"] = AccessTokenMethodName
 	return user_model.GetUserByID(ctx, t.UID)
 }
 

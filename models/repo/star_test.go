@@ -8,6 +8,7 @@ import (
 
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 
@@ -21,12 +22,23 @@ func TestStarRepo(t *testing.T) {
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
 
 	unittest.AssertNotExistsBean(t, &repo_model.Star{UID: user.ID, RepoID: repo.ID})
+	_, _ = db.DeleteByBean(t.Context(), &rincontrol_model.OutboxEvent{ActorUserID: user.ID, RepositoryID: repo.ID, EventType: "repository.star.changed"})
 	assert.NoError(t, repo_model.StarRepo(t.Context(), user, repo, true))
 	unittest.AssertExistsAndLoadBean(t, &repo_model.Star{UID: user.ID, RepoID: repo.ID})
+	assert.EqualValues(t, 1, countSocialOutbox(t, "repository.star.changed", user.ID, repo.ID))
 	assert.NoError(t, repo_model.StarRepo(t.Context(), user, repo, true))
 	unittest.AssertExistsAndLoadBean(t, &repo_model.Star{UID: user.ID, RepoID: repo.ID})
+	assert.EqualValues(t, 1, countSocialOutbox(t, "repository.star.changed", user.ID, repo.ID))
 	assert.NoError(t, repo_model.StarRepo(t.Context(), user, repo, false))
 	unittest.AssertNotExistsBean(t, &repo_model.Star{UID: user.ID, RepoID: repo.ID})
+	assert.EqualValues(t, 2, countSocialOutbox(t, "repository.star.changed", user.ID, repo.ID))
+}
+
+func countSocialOutbox(t *testing.T, eventType string, actorID, repoID int64) int64 {
+	t.Helper()
+	count, err := db.GetEngine(t.Context()).Where("event_type=? AND actor_user_id=? AND repository_id=?", eventType, actorID, repoID).Count(new(rincontrol_model.OutboxEvent))
+	assert.NoError(t, err)
+	return count
 }
 
 func TestIsStaring(t *testing.T) {

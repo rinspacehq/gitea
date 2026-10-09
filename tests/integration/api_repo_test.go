@@ -350,6 +350,23 @@ func TestAPIGetRepoByIDUnauthorized(t *testing.T) {
 	MakeRequest(t, req, http.StatusNotFound)
 }
 
+func TestAPIGetRepoByIDLoadsRinspacePresentation(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+	_, err := repo_model.UpsertRinspaceRepositoryPresentation(t.Context(), &repo_model.RinspaceRepositoryPresentation{
+		RepoID: 1, Title: "Stable API projection", ContentType: repo_model.RinspaceContentArticle, Version: 7,
+	}, []int64{2})
+	require.NoError(t, err)
+
+	session := loginUser(t, "user2")
+	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeReadRepository)
+	resp := MakeRequest(t, NewRequest(t, "GET", "/api/v1/repositories/1").AddTokenAuth(token), http.StatusOK)
+	repository := DecodeJSON(t, resp, &api.Repository{})
+	require.Equal(t, "Stable API projection", repository.RinspaceTitle)
+	require.Equal(t, repo_model.RinspaceContentArticle, repository.RinspaceContentType)
+	require.Equal(t, []int64{2}, repository.RinspaceContentOwnerIDs)
+	require.EqualValues(t, 7, repository.RinspaceProjectionVersion)
+}
+
 func TestAPIRepoMigrate(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
 		// migrate from a local fixture repo (user2/repo1) via the live listener so the test runs offline

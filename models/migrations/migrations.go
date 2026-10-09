@@ -420,6 +420,12 @@ func prepareMigrationTasks() []*migration {
 		newMigration(340, "Add ContinueOnError column to ActionRunJob", v1_27.AddContinueOnErrorToActionRunJob),
 		newMigration(341, "Convert legacy MSSQL DATETIME columns to DATETIME2", v1_27.FixLegacyMSSQLDateTimeColumns),
 		newMigration(342, "Add scoped workflows schema", v1_27.AddScopedWorkflowsSchema),
+		newMigration(343, "Add Rinspace repository presentation", v1_27.AddRinspaceRepositoryPresentation),
+		newMigration(344, "Add Rin Control social outbox", v1_27.AddRinControlSocialOutbox),
+		newMigration(345, "Expand Rin Control outbox for publication events", v1_27.ExpandRinControlOutboxForPublicationEvents),
+		newMigration(346, "Ensure Rin Control publication event ID capacity", v1_27.EnsureRinControlPublicationEventIDCapacity),
+		newMigration(347, "Add Rin Control bounded delivery maintenance lease", v1_27.AddRinControlDeliveryControls),
+		newMigration(348, "Add Rinspace identity and credential bindings", v1_27.AddRinspaceIdentityBindings),
 	}
 	return preparedMigrations
 }

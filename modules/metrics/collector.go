@@ -5,8 +5,10 @@ package metrics
 
 import (
 	"runtime"
+	"time"
 
 	activities_model "gitea.dev/models/activities"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/setting"
 
@@ -34,6 +36,9 @@ type Collector struct {
 	Milestones         *prometheus.Desc
 	Mirrors            *prometheus.Desc
 	Oauths             *prometheus.Desc
+	RinOutboxBacklog   *prometheus.Desc
+	RinOutboxOldestAge *prometheus.Desc
+	RinOutboxRetries   *prometheus.Desc
 	Organizations      *prometheus.Desc
 	Projects           *prometheus.Desc
 	ProjectColumns     *prometheus.Desc
@@ -136,6 +141,21 @@ func NewCollector() Collector {
 			"Number of Oauths",
 			nil, nil,
 		),
+		RinOutboxBacklog: prometheus.NewDesc(
+			namespace+"rin_control_outbox_events",
+			"Number of Rin Control outbox events by non-terminal state",
+			[]string{"state"}, nil,
+		),
+		RinOutboxOldestAge: prometheus.NewDesc(
+			namespace+"rin_control_outbox_oldest_seconds",
+			"Age in seconds of the oldest undelivered Rin Control event",
+			nil, nil,
+		),
+		RinOutboxRetries: prometheus.NewDesc(
+			namespace+"rin_control_outbox_attempts",
+			"Total delivery attempts across undelivered Rin Control events",
+			nil, nil,
+		),
 		Organizations: prometheus.NewDesc(
 			namespace+"organizations",
 			"Number of Organizations",
@@ -217,6 +237,9 @@ func (c Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.Milestones
 	ch <- c.Mirrors
 	ch <- c.Oauths
+	ch <- c.RinOutboxBacklog
+	ch <- c.RinOutboxOldestAge
+	ch <- c.RinOutboxRetries
 	ch <- c.Organizations
 	ch <- c.Projects
 	ch <- c.ProjectColumns
@@ -234,6 +257,14 @@ func (c Collector) Describe(ch chan<- *prometheus.Desc) {
 // Collect returns the metrics with values
 func (c Collector) Collect(ch chan<- prometheus.Metric) {
 	stats := activities_model.GetStatistic(graceful.GetManager().ShutdownContext())
+	outbox, _ := rincontrol_model.GetOutboxBacklog(graceful.GetManager().ShutdownContext(), time.Now())
+	for state, count := range map[string]int64{
+		rincontrol_model.OutboxStatePending: outbox.Pending, rincontrol_model.OutboxStateDelivering: outbox.Delivering, rincontrol_model.OutboxStateDead: outbox.Dead,
+	} {
+		ch <- prometheus.MustNewConstMetric(c.RinOutboxBacklog, prometheus.GaugeValue, float64(count), state)
+	}
+	ch <- prometheus.MustNewConstMetric(c.RinOutboxOldestAge, prometheus.GaugeValue, outbox.OldestAge.Seconds())
+	ch <- prometheus.MustNewConstMetric(c.RinOutboxRetries, prometheus.GaugeValue, float64(outbox.RetryAttempts))
 
 	ch <- prometheus.MustNewConstMetric(
 		c.Accesses,

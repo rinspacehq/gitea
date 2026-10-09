@@ -5,6 +5,7 @@
 package setting
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"gitea.dev/modules/templates"
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
+	auth_service "gitea.dev/services/auth"
 	"gitea.dev/services/context"
 	"gitea.dev/services/forms"
 )
@@ -105,6 +107,11 @@ func ApplicationsPost(ctx *context.Context) {
 
 	if err := auth_model.NewAccessToken(ctx, t); err != nil {
 		ctx.ServerError("NewAccessToken", err)
+		return
+	}
+	if err := auth_service.RegisterRinspacePersonalCredential(ctx, ctx.Doer.ID, fmt.Sprintf("pat:%d", t.ID)); err != nil {
+		_ = auth_model.DeleteAccessTokenByID(ctx, t.ID, ctx.Doer.ID)
+		ctx.ServerError("RegisterRinspacePersonalCredential", err)
 		return
 	}
 

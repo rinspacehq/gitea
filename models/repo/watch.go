@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"gitea.dev/models/db"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
@@ -69,43 +70,51 @@ func IsWatching(ctx context.Context, userID, repoID int64) bool {
 }
 
 func watchRepoMode(ctx context.Context, watch *Watch, mode WatchMode) (err error) {
-	if watch.Mode == mode {
-		return nil
-	}
-	if mode == WatchModeAuto && (watch.Mode == WatchModeDont || IsWatchMode(watch.Mode)) {
-		// Don't auto watch if already watching or deliberately not watching
-		return nil
-	}
-
-	hadrec := watch.Mode != WatchModeNone
-	needsrec := mode != WatchModeNone
-	repodiff := 0
-
-	if IsWatchMode(mode) && !IsWatchMode(watch.Mode) {
-		repodiff = 1
-	} else if !IsWatchMode(mode) && IsWatchMode(watch.Mode) {
-		repodiff = -1
-	}
-
-	watch.Mode = mode
-
-	if !hadrec && needsrec {
-		watch.Mode = mode
-		if err = db.Insert(ctx, watch); err != nil {
+	return db.WithTx(ctx, func(ctx context.Context) error {
+		current, err := GetWatch(ctx, watch.UserID, watch.RepoID)
+		if err != nil {
 			return err
 		}
-	} else if needsrec {
-		watch.Mode = mode
-		if _, err := db.GetEngine(ctx).ID(watch.ID).AllCols().Update(watch); err != nil {
+		if current.Mode == mode {
+			return nil
+		}
+		if mode == WatchModeAuto && (current.Mode == WatchModeDont || IsWatchMode(current.Mode)) {
+			// Don't auto watch if already watching or deliberately not watching
+			return nil
+		}
+
+		hadrec := current.Mode != WatchModeNone
+		needsrec := mode != WatchModeNone
+		wasWatching := IsWatchMode(current.Mode)
+		isWatching := IsWatchMode(mode)
+		repodiff := 0
+		if isWatching && !wasWatching {
+			repodiff = 1
+		} else if !isWatching && wasWatching {
+			repodiff = -1
+		}
+		current.Mode = mode
+		if !hadrec && needsrec {
+			if err = db.Insert(ctx, current); err != nil {
+				return err
+			}
+		} else if needsrec {
+			if _, err := db.GetEngine(ctx).ID(current.ID).AllCols().Update(current); err != nil {
+				return err
+			}
+		} else if _, err = db.DeleteByID[Watch](ctx, current.ID); err != nil {
 			return err
 		}
-	} else if _, err = db.DeleteByID[Watch](ctx, watch.ID); err != nil {
-		return err
-	}
-	if repodiff != 0 {
-		_, err = db.GetEngine(ctx).Exec("UPDATE `repository` SET num_watches = num_watches + ? WHERE id = ?", repodiff, watch.RepoID)
-	}
-	return err
+		if repodiff != 0 {
+			if _, err = db.GetEngine(ctx).Exec("UPDATE `repository` SET num_watches = num_watches + ? WHERE id = ?", repodiff, current.RepoID); err != nil {
+				return err
+			}
+			if err = rincontrol_model.EnqueueSocialEvent(ctx, rincontrol_model.SocialEvent{EventType: "repository.watch.changed", ActorUserID: current.UserID, RepositoryID: current.RepoID, Active: isWatching}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // WatchRepo watch or unwatch repository.
@@ -182,7 +191,7 @@ func WatchIfAuto(ctx context.Context, userID, repoID int64, isWrite bool) error 
 }
 
 // ClearRepoWatches clears all watches for a repository and from the user that watched it.
-// Used when a repository is set to private.
+// Visibility changes must preserve these rows; this is for destructive cleanup.
 func ClearRepoWatches(ctx context.Context, repoID int64) error {
 	if _, err := db.Exec(ctx, "UPDATE `repository` SET num_watches = 0 WHERE id = ?", repoID); err != nil {
 		return err

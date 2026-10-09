@@ -1,5 +1,5 @@
 <div class="breadcrumb">
-	<a class="section" href="{{$.BranchLink}}">{{.Repository.Name}}</a>
+	<a class="section" href="{{$.BranchLink}}">{{.Repository.RinspaceDisplayName}}</a>
 	{{$n := len .TreeNames}}
 	{{$l := Eval $n "-" 1}}
 	{{range $i, $v := .TreeNames}}

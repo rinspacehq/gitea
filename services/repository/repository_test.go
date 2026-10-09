@@ -11,6 +11,7 @@ import (
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
+	user_model "gitea.dev/models/user"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +71,7 @@ func TestRepository_HasWiki(t *testing.T) {
 	assert.False(t, HasWiki(t.Context(), repo2))
 }
 
-func TestMakeRepoPrivateClearsWatches(t *testing.T) {
+func TestMakeRepoPrivatePreservesSocialRelationships(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
@@ -79,21 +80,36 @@ func TestMakeRepoPrivateClearsWatches(t *testing.T) {
 	watchers, err := repo_model.GetRepoWatchersIDs(t.Context(), repo.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, watchers)
+	starrer := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
+	require.NoError(t, repo_model.StarRepo(t.Context(), starrer, repo, true))
+	repo = unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repo.ID})
+	stars := repo.NumStars
+	watches := repo.NumWatches
+	watch := unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{RepoID: repo.ID})
+	star := unittest.AssertExistsAndLoadBean(t, &repo_model.Star{RepoID: repo.ID})
 
 	assert.NoError(t, MakeRepoPrivate(t.Context(), repo, true))
 
 	watchers, err = repo_model.GetRepoWatchersIDs(t.Context(), repo.ID)
 	assert.NoError(t, err)
-	assert.Empty(t, watchers)
+	assert.NotEmpty(t, watchers)
 
 	updatedRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repo.ID})
 	assert.True(t, updatedRepo.IsPrivate)
-	assert.Zero(t, updatedRepo.NumWatches)
+	assert.Equal(t, watches, updatedRepo.NumWatches)
+	assert.Equal(t, stars, updatedRepo.NumStars)
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{ID: watch.ID, CreatedUnix: watch.CreatedUnix})
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Star{ID: star.ID, CreatedUnix: star.CreatedUnix})
+	require.NoError(t, MakeRepoPrivate(t.Context(), updatedRepo, false))
+	restoredAction := unittest.AssertExistsAndLoadBean(t, &activities_model.Action{RepoID: repo.ID})
+	assert.False(t, restoredAction.IsPrivate)
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{ID: watch.ID, CreatedUnix: watch.CreatedUnix})
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Star{ID: star.ID, CreatedUnix: star.CreatedUnix})
 }
 
 // TestUpdateRepositoryClearsWatchesOnVisibilityChange ensures the shared updateRepository
 // helper (used by the API EditRepo path) also clears watches when a repo goes private.
-func TestUpdateRepositoryClearsWatchesOnVisibilityChange(t *testing.T) {
+func TestUpdateRepositoryPreservesSocialRelationshipsOnVisibilityChange(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
@@ -102,14 +118,17 @@ func TestUpdateRepositoryClearsWatchesOnVisibilityChange(t *testing.T) {
 	watchers, err := repo_model.GetRepoWatchersIDs(t.Context(), repo.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, watchers)
+	stars := repo.NumStars
+	watches := repo.NumWatches
 
 	repo.IsPrivate = true
 	require.NoError(t, updateRepository(t.Context(), repo, true))
 
 	watchers, err = repo_model.GetRepoWatchersIDs(t.Context(), repo.ID)
 	assert.NoError(t, err)
-	assert.Empty(t, watchers)
+	assert.NotEmpty(t, watchers)
 
 	updatedRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repo.ID})
-	assert.Zero(t, updatedRepo.NumWatches)
+	assert.Equal(t, watches, updatedRepo.NumWatches)
+	assert.Equal(t, stars, updatedRepo.NumStars)
 }

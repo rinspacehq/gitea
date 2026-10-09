@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	asymkey_model "gitea.dev/models/asymkey"
@@ -298,6 +299,8 @@ func runServ(ctx context.Context, c *cli.Command) error {
 		return nil
 	}
 
+	commandCtx, cancelCommand := context.WithCancel(ctx)
+	defer cancelCommand()
 	var command *exec.Cmd
 	gitBinPath := filepath.Dir(gitcmd.GitExecutable) // e.g. /usr/bin
 	gitBinVerb := filepath.Join(gitBinPath, verb)    // e.g. /usr/bin/git-upload-pack
@@ -307,12 +310,12 @@ func runServ(ctx context.Context, c *cli.Command) error {
 		verbFields := strings.SplitN(verb, "-", 2)
 		if len(verbFields) == 2 {
 			// use git binary with the sub-command part: "C:\...\bin\git.exe", "upload-pack", ...
-			command = exec.CommandContext(ctx, gitcmd.GitExecutable, verbFields[1], repoPath)
+			command = exec.CommandContext(commandCtx, gitcmd.GitExecutable, verbFields[1], repoPath)
 		}
 	}
 	if command == nil {
 		// by default, use the verb (it has been checked above by allowedCommands)
-		command = exec.CommandContext(ctx, gitBinVerb, repoPath)
+		command = exec.CommandContext(commandCtx, gitBinVerb, repoPath)
 	}
 
 	process.SetSysProcAttribute(command)
@@ -338,7 +341,30 @@ func runServ(ctx context.Context, c *cli.Command) error {
 	// it could be re-considered whether to use the same git.CommonGitCmdEnvs() as "git" command later.
 	command.Env = append(command.Env, gitcmd.CommonCmdServEnvs()...)
 
-	if err = command.Run(); err != nil {
+	credentialWatchDone := make(chan struct{})
+	if results.KeyID > 0 && results.DeployKeyID == 0 {
+		go func() {
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-credentialWatchDone:
+					return
+				case <-commandCtx.Done():
+					return
+				case <-ticker.C:
+					_, owner, checkErr := private.ServNoCommand(commandCtx, results.KeyID)
+					if checkErr != nil || owner == nil || owner.ID != results.UserID {
+						cancelCommand()
+						return
+					}
+				}
+			}
+		}()
+	}
+	err = command.Run()
+	close(credentialWatchDone)
+	if err != nil {
 		return fail(ctx, "Failed to execute git command", "Failed to execute git command: %v", err)
 	}
 

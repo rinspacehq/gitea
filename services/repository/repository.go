@@ -144,19 +144,12 @@ func MakeRepoPrivate(ctx context.Context, repo *repo_model.Repository, private b
 			return err
 		}
 
-		// If repo has become private, we need to set its actions to private, and clear stars and watches.
-		if private {
-			_, err = db.GetEngine(ctx).
-				Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{IsPrivate: true})
-			if err != nil {
-				return err
-			}
-			if err = repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
-				return err
-			}
-			if err = repo_model.ClearRepoWatches(ctx, repo.ID); err != nil {
-				return err
-			}
+		// Existing relationship rows stay intact. Read paths and notification fan-out apply
+		// current permissions, while activity visibility follows the repository both ways.
+		_, err = db.GetEngine(ctx).
+			Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{IsPrivate: private})
+		if err != nil {
+			return err
 		}
 
 		shouldUpdateForks := private
@@ -261,23 +254,12 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 			}
 		}
 
-		// If repo has become private, we need to set its actions to private.
-		if repo.IsPrivate {
-			_, err = e.Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{
-				IsPrivate: true,
-			})
-			if err != nil {
-				return err
-			}
-
-			if err = repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
-				return err
-			}
-
-			// watchers who lost access must not keep watching the now-private repo
-			if err = repo_model.ClearRepoWatches(ctx, repo.ID); err != nil {
-				return err
-			}
+		// Activity visibility follows the repository both ways; social rows stay intact.
+		_, err = e.Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{
+			IsPrivate: repo.IsPrivate,
+		})
+		if err != nil {
+			return err
 		}
 
 		// Create/Remove git-daemon-export-ok for git-daemon...

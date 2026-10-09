@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"gitea.dev/models/db"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/timeutil"
 
@@ -63,6 +64,9 @@ func StarRepo(ctx context.Context, doer *user_model.User, repo *Repository, star
 				return err
 			}
 		}
+		if err := rincontrol_model.EnqueueSocialEvent(ctx, rincontrol_model.SocialEvent{EventType: "repository.star.changed", ActorUserID: doer.ID, RepositoryID: repo.ID, Active: star}); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -90,7 +94,7 @@ func GetStargazers(ctx context.Context, repo *Repository, opts db.ListOptions) (
 }
 
 // ClearRepoStars clears all stars for a repository and from the user that starred it.
-// Used when a repository is set to private.
+// Visibility changes must preserve these rows; this is for destructive cleanup.
 func ClearRepoStars(ctx context.Context, repoID int64) error {
 	if _, err := db.Exec(ctx, "UPDATE `user` SET num_stars=num_stars-1 WHERE id IN (SELECT `uid` FROM `star` WHERE repo_id = ?)", repoID); err != nil {
 		return err

@@ -114,6 +114,49 @@ func TestStarredWatchedReposExcludeNonPublicOwners(t *testing.T) {
 	assert.Contains(t, repoIDs(watched), int64(publicOwnerRepo), "a public repo under a public owner stays visible")
 }
 
+func TestPrivateSocialRelationsFollowCurrentAccessWithoutMutation(t *testing.T) {
+	require.NoError(t, unittest.PrepareTestDatabase())
+	viewer := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+	require.NoError(t, repo_model.StarRepo(t.Context(), viewer, repo, true))
+	star := unittest.AssertExistsAndLoadBean(t, &repo_model.Star{UID: viewer.ID, RepoID: repo.ID})
+	watch := unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{UserID: viewer.ID, RepoID: repo.ID})
+	repo.IsPrivate = true
+	require.NoError(t, repo_model.UpdateRepositoryColsNoAutoTime(t.Context(), repo, "is_private"))
+
+	starOpts := &repo_model.StarredReposOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 20}, StarrerID: viewer.ID, IncludePrivate: true, Actor: viewer}
+	watchOpts := &repo_model.WatchedReposOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 20}, WatcherID: viewer.ID, IncludePrivate: true, Actor: viewer}
+	starred, err := repo_model.GetStarredRepos(t.Context(), starOpts)
+	require.NoError(t, err)
+	assert.NotContains(t, repoIDs(starred), repo.ID)
+	starredTotal, err := repo_model.CountStarredRepos(t.Context(), starOpts)
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(starred)), starredTotal)
+	watched, total, err := repo_model.GetWatchedRepos(t.Context(), watchOpts)
+	require.NoError(t, err)
+	assert.NotContains(t, repoIDs(watched), repo.ID)
+	assert.Equal(t, int64(len(watched)), total)
+
+	require.NoError(t, db.Insert(t.Context(), &access_model.Access{UserID: viewer.ID, RepoID: repo.ID, Mode: perm_model.AccessModeRead}))
+	starred, err = repo_model.GetStarredRepos(t.Context(), starOpts)
+	require.NoError(t, err)
+	assert.Contains(t, repoIDs(starred), repo.ID)
+	starredTotal, err = repo_model.CountStarredRepos(t.Context(), starOpts)
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(starred)), starredTotal)
+	watched, _, err = repo_model.GetWatchedRepos(t.Context(), watchOpts)
+	require.NoError(t, err)
+	assert.Contains(t, repoIDs(watched), repo.ID)
+
+	_, err = db.DeleteByBean(t.Context(), &access_model.Access{UserID: viewer.ID, RepoID: repo.ID})
+	require.NoError(t, err)
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Star{ID: star.ID, CreatedUnix: star.CreatedUnix})
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{ID: watch.ID, CreatedUnix: watch.CreatedUnix})
+	starred, err = repo_model.GetStarredRepos(t.Context(), starOpts)
+	require.NoError(t, err)
+	assert.NotContains(t, repoIDs(starred), repo.ID)
+}
+
 func repoIDs(repos []*repo_model.Repository) []int64 {
 	ids := make([]int64, len(repos))
 	for i, r := range repos {

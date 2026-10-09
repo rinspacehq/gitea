@@ -6,6 +6,7 @@ package setting
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	asymkey_model "gitea.dev/models/asymkey"
@@ -15,6 +16,7 @@ import (
 	"gitea.dev/modules/templates"
 	"gitea.dev/modules/web"
 	asymkey_service "gitea.dev/services/asymkey"
+	auth_service "gitea.dev/services/auth"
 	"gitea.dev/services/context"
 	"gitea.dev/services/forms"
 )
@@ -185,7 +187,8 @@ func KeysPost(ctx *context.Context) {
 			return
 		}
 
-		if _, err = asymkey_model.AddPublicKey(ctx, ctx.Doer.ID, form.Title, content, 0, false); err != nil {
+		key, addErr := asymkey_model.AddPublicKey(ctx, ctx.Doer.ID, form.Title, content, 0, false)
+		if err = addErr; err != nil {
 			ctx.Data["HasSSHError"] = true
 			switch {
 			case asymkey_model.IsErrKeyAlreadyExist(err):
@@ -204,6 +207,11 @@ func KeysPost(ctx *context.Context) {
 			default:
 				ctx.ServerError("AddPublicKey", err)
 			}
+			return
+		}
+		if err := auth_service.RegisterRinspacePersonalCredential(ctx, ctx.Doer.ID, fmt.Sprintf("ssh:%d", key.ID)); err != nil {
+			_ = asymkey_service.DeletePublicKey(ctx, ctx.Doer, key.ID)
+			ctx.ServerError("RegisterRinspacePersonalCredential", err)
 			return
 		}
 		ctx.Flash.Success(ctx.Tr("settings.add_key_success", form.Title))

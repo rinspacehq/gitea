@@ -6,6 +6,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	actions_model "gitea.dev/models/actions"
@@ -16,6 +17,7 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
+	"gitea.dev/services/oauth2_provider"
 )
 
 // Ensure the struct implements the interface.
@@ -81,6 +83,9 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 		}
 
 		store.GetData()["LoginMethod"] = OAuth2TokenMethodName
+		if parsed, parseErr := oauth2_provider.ParseToken(authToken, oauth2_provider.DefaultSigningKey); parseErr == nil {
+			store.GetData()[CredentialIDDataKey] = fmt.Sprintf("oauth:%d", parsed.GrantID)
+		}
 		store.GetData()["IsApiToken"] = true
 		store.GetData()["ApiTokenScope"] = accessTokenScope
 		return u, nil
@@ -102,6 +107,7 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 		}
 
 		store.GetData()["LoginMethod"] = AccessTokenMethodName
+		store.GetData()[CredentialIDDataKey] = fmt.Sprintf("pat:%d", token.ID)
 		store.GetData()["IsApiToken"] = true
 		store.GetData()["ApiTokenScope"] = token.Scope
 		return u, nil

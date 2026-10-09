@@ -24,6 +24,7 @@ import (
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
 	"gitea.dev/services/agit"
+	auth_service "gitea.dev/services/auth"
 	gitea_context "gitea.dev/services/context"
 	pull_service "gitea.dev/services/pull"
 )
@@ -511,6 +512,12 @@ func (ctx *preReceiveContext) loadPusherAndPermission() bool {
 			return false
 		}
 		ctx.user = user
+		if ctx.opts.KeyID > 0 && ctx.opts.DeployKeyID == 0 {
+			if err := auth_service.AuthorizeRinspacePersonalCredential(ctx, user, fmt.Sprintf("ssh:%d", ctx.opts.KeyID)); err != nil {
+				ctx.JSON(http.StatusForbidden, private.Response{UserMsg: "Rinspace SSH credential is no longer active."})
+				return false
+			}
+		}
 		userPerm, err := access_model.GetDoerRepoPermission(ctx, ctx.Repo.Repository, user)
 		if err != nil {
 			log.Error("Unable to get Repo permission of repo %s/%s of User %s: %v", ctx.Repo.Repository.OwnerName, ctx.Repo.Repository.Name, user.Name, err)

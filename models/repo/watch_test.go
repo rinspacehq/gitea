@@ -8,6 +8,7 @@ import (
 
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
@@ -137,4 +138,30 @@ func TestClearRepoWatches(t *testing.T) {
 
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repoID})
 	assert.Zero(t, repo.NumWatches)
+}
+
+func TestWatchRepoOutboxAndAtomicRollback(t *testing.T) {
+	assert.NoError(t, unittest.PrepareTestDatabase())
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 5})
+	_, _ = db.DeleteByBean(t.Context(), &rincontrol_model.OutboxEvent{ActorUserID: user.ID, RepositoryID: repo.ID, EventType: "repository.watch.changed"})
+	assert.False(t, repo_model.IsWatching(t.Context(), user.ID, repo.ID))
+
+	assert.NoError(t, repo_model.WatchRepo(t.Context(), user, repo, true))
+	assert.True(t, repo_model.IsWatching(t.Context(), user.ID, repo.ID))
+	assert.EqualValues(t, 1, countSocialOutbox(t, "repository.watch.changed", user.ID, repo.ID))
+	assert.NoError(t, repo_model.WatchRepo(t.Context(), user, repo, true))
+	assert.EqualValues(t, 1, countSocialOutbox(t, "repository.watch.changed", user.ID, repo.ID))
+	assert.NoError(t, repo_model.WatchRepo(t.Context(), user, repo, false))
+	assert.EqualValues(t, 2, countSocialOutbox(t, "repository.watch.changed", user.ID, repo.ID))
+
+	repo = unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 5})
+	before := repo.NumWatches
+	_, err := db.Exec(t.Context(), "CREATE TRIGGER fail_rin_outbox BEFORE INSERT ON rin_control_outbox BEGIN SELECT RAISE(FAIL, 'injected outbox failure'); END")
+	require.NoError(t, err)
+	defer func() { _, _ = db.Exec(t.Context(), "DROP TRIGGER IF EXISTS fail_rin_outbox") }()
+	assert.Error(t, repo_model.WatchRepo(t.Context(), user, repo, true))
+	assert.False(t, repo_model.IsWatching(t.Context(), user.ID, repo.ID))
+	reloaded := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 5})
+	assert.Equal(t, before, reloaded.NumWatches)
 }

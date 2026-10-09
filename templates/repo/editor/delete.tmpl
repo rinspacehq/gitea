@@ -13,7 +13,7 @@
 						{{template "repo/view_file_tree_toggle_button" .}}
 						{{/* then, to make the page looks overall good, add the breadcrumb here to make the toggle button can be shown in a text row, but not a single button*/}}
 						<div class="breadcrumb">
-							<a class="section" href="{{$.BranchLink}}">{{.Repository.Name}}</a>
+							<a class="section" href="{{$.BranchLink}}">{{.Repository.RinspaceDisplayName}}</a>
 							{{range $i, $v := .TreeNames}}
 								<div class="breadcrumb-divider">/</div>
 								<span class="section"><a href="{{$.BranchLink}}/{{index $.TreePaths $i | PathEscapeSegments}}">{{$v}}</a></span>

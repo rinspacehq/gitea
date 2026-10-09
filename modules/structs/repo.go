@@ -57,15 +57,21 @@ type ExternalWiki struct {
 
 // Repository represents a repository
 type Repository struct {
-	ID          int64  `json:"id"`
-	Owner       *User  `json:"owner"`
-	Name        string `json:"name"`
-	FullName    string `json:"full_name"`
-	Description string `json:"description"`
-	Empty       bool   `json:"empty"`
-	Private     bool   `json:"private"`
-	Fork        bool   `json:"fork"`
-	Template    bool   `json:"template"`
+	ID                        int64   `json:"id"`
+	Owner                     *User   `json:"owner"`
+	Name                      string  `json:"name"`
+	FullName                  string  `json:"full_name"`
+	RinspaceDisplayName       string  `json:"rinspace_display_name,omitempty"`
+	RinspaceDisplayFullName   string  `json:"rinspace_display_full_name,omitempty"`
+	RinspaceTitle             string  `json:"rinspace_title,omitempty"`
+	RinspaceContentType       string  `json:"rinspace_content_type,omitempty"`
+	RinspaceContentOwnerIDs   []int64 `json:"rinspace_content_owner_ids,omitempty"`
+	RinspaceProjectionVersion int64   `json:"rinspace_projection_version,omitempty"`
+	Description               string  `json:"description"`
+	Empty                     bool    `json:"empty"`
+	Private                   bool    `json:"private"`
+	Fork                      bool    `json:"fork"`
+	Template                  bool    `json:"template"`
 	// the original repository if this repository is a fork, otherwise null
 	Parent              *Repository `json:"parent,omitempty"`
 	Mirror              bool        `json:"mirror"`
@@ -133,6 +139,21 @@ type Repository struct {
 	RepoTransfer     *RepoTransfer `json:"repo_transfer,omitempty"`
 	Topics           []string      `json:"topics"`
 	Licenses         []string      `json:"licenses"`
+}
+
+type UpdateRinspaceRepositoryPresentationOption struct {
+	RepositoryID  int64   `json:"repository_id" binding:"Required"`
+	Title         string  `json:"title" binding:"MaxSize(512)"`
+	ContentType   string  `json:"content_type" binding:"Required;MaxSize(16)"`
+	ContentOwners []int64 `json:"content_owner_ids"`
+	Version       int64   `json:"version" binding:"Required"`
+}
+
+type UpdateRinspaceRepositorySocialOption struct {
+	RepositoryID int64  `json:"repository_id" binding:"Required"`
+	ActorUserID  int64  `json:"actor_user_id" binding:"Required"`
+	Relation     string `json:"relation" binding:"Required;In(star,watch)"`
+	Active       bool   `json:"active"`
 }
 
 // CreateRepoOption options when creating repository

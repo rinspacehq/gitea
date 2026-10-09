@@ -11,6 +11,7 @@ type DashboardRepo = {
   id: number,
   link: string,
   full_name: string,
+  rinspace_display_full_name?: string,
   archived: boolean,
   fork: boolean,
   mirror: boolean,
@@ -479,7 +480,7 @@ export default defineComponent({
           <li class="tw-flex tw-items-center tw-py-2" v-for="(repo, index) in repos" :class="{'active': index === activeIndex}" :key="repo.id">
             <a class="repo-list-link muted" :href="repo.link">
               <svg-icon :name="repoIcon(repo)" :size="16" class="repo-list-icon"/>
-              <div class="tw-inline-block tw-truncate">{{ repo.full_name }}</div>
+              <div class="tw-inline-block tw-truncate">{{ repo.rinspace_display_full_name || repo.full_name }}</div>
               <div v-if="repo.archived">
                 <svg-icon name="octicon-archive" :size="16"/>
               </div>

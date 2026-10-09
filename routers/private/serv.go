@@ -18,6 +18,7 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
 	"gitea.dev/modules/setting"
+	auth_service "gitea.dev/services/auth"
 	"gitea.dev/services/context"
 	repo_service "gitea.dev/services/repository"
 	wiki_service "gitea.dev/services/wiki"
@@ -68,6 +69,10 @@ func ServNoCommand(ctx *context.PrivateContext) {
 			ctx.JSON(http.StatusForbidden, private.Response{
 				UserMsg: "Your account is disabled.",
 			})
+			return
+		}
+		if err := auth_service.AuthorizeRinspacePersonalCredential(ctx, user, fmt.Sprintf("ssh:%d", key.ID)); err != nil {
+			ctx.JSON(http.StatusForbidden, private.Response{UserMsg: "Rinspace SSH credential is no longer active."})
 			return
 		}
 		results.Owner = user
@@ -298,6 +303,10 @@ func ServCommand(ctx *context.PrivateContext) {
 			ctx.JSON(http.StatusForbidden, private.Response{
 				UserMsg: "Your account is disabled.",
 			})
+			return
+		}
+		if err := auth_service.AuthorizeRinspacePersonalCredential(ctx, user, fmt.Sprintf("ssh:%d", key.ID)); err != nil {
+			ctx.JSON(http.StatusForbidden, private.Response{UserMsg: "Rinspace SSH credential is no longer active."})
 			return
 		}
 

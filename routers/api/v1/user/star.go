@@ -19,7 +19,7 @@ import (
 
 // getStarredRepos returns the repos that the user with the specified userID has
 // starred
-func getStarredRepos(ctx *context.APIContext, user *user_model.User, private bool) ([]*api.Repository, error) {
+func getStarredRepos(ctx *context.APIContext, user *user_model.User, private bool) ([]*api.Repository, int64, error) {
 	opts := &repo_model.StarredReposOptions{
 		ListOptions:    utils.GetListOptions(ctx),
 		StarrerID:      user.ID,
@@ -30,21 +30,25 @@ func getStarredRepos(ctx *context.APIContext, user *user_model.User, private boo
 
 	starredRepos, err := repo_model.GetStarredRepos(ctx, opts)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	total, err := repo_model.CountStarredRepos(ctx, opts)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	repos := make([]*api.Repository, 0, len(starredRepos))
 	for _, starred := range starredRepos {
 		permission, err := access_model.GetIndividualUserRepoPermission(ctx, starred, user)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if !permission.HasAnyUnitAccessOrPublicAccess() {
 			continue
 		}
 		repos = append(repos, convert.ToRepo(ctx, starred, permission))
 	}
-	return repos, nil
+	return repos, total, nil
 }
 
 // GetStarredRepos returns the repos that the given user has starred
@@ -77,14 +81,14 @@ func GetStarredRepos(ctx *context.APIContext) {
 	//     "$ref": "#/responses/forbidden"
 
 	private := ctx.ContextUser.ID == ctx.Doer.ID
-	repos, err := getStarredRepos(ctx, ctx.ContextUser, private)
+	repos, total, err := getStarredRepos(ctx, ctx.ContextUser, private)
 	if err != nil {
 		ctx.APIErrorInternal(err)
 		return
 	}
 
-	ctx.SetLinkHeader(int64(ctx.ContextUser.NumStars), utils.GetListOptions(ctx).PageSize)
-	ctx.SetTotalCountHeader(int64(ctx.ContextUser.NumStars))
+	ctx.SetLinkHeader(total, utils.GetListOptions(ctx).PageSize)
+	ctx.SetTotalCountHeader(total)
 	ctx.JSON(http.StatusOK, &repos)
 }
 
@@ -110,13 +114,13 @@ func GetMyStarredRepos(ctx *context.APIContext) {
 	//   "403":
 	//     "$ref": "#/responses/forbidden"
 
-	repos, err := getStarredRepos(ctx, ctx.Doer, true)
+	repos, total, err := getStarredRepos(ctx, ctx.Doer, true)
 	if err != nil {
 		ctx.APIErrorInternal(err)
 	}
 
-	ctx.SetLinkHeader(int64(ctx.Doer.NumStars), utils.GetListOptions(ctx).PageSize)
-	ctx.SetTotalCountHeader(int64(ctx.Doer.NumStars))
+	ctx.SetLinkHeader(total, utils.GetListOptions(ctx).PageSize)
+	ctx.SetTotalCountHeader(total)
 	ctx.JSON(http.StatusOK, &repos)
 }
 

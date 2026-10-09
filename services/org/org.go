@@ -113,21 +113,10 @@ func updateRepoForVisibilityChanged(ctx context.Context, repo *repo_model.Reposi
 		return fmt.Errorf("RecalculateAccesses: %w", err)
 	}
 
-	if makePrivate {
-		if _, err := db.GetEngine(ctx).Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{
-			IsPrivate: true,
-		}); err != nil {
-			return err
-		}
-
-		// the repo is no longer publicly visible, so drop stars and watches from users who can no longer
-		// see it, matching the direct repository-private transition (see services/repository)
-		if err := repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
-			return err
-		}
-		if err := repo_model.ClearRepoWatches(ctx, repo.ID); err != nil {
-			return err
-		}
+	if _, err := db.GetEngine(ctx).Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{
+		IsPrivate: makePrivate || repo.IsPrivate,
+	}); err != nil {
+		return err
 	}
 
 	// Create/Remove git-daemon-export-ok for git-daemon...

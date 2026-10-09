@@ -147,23 +147,27 @@ func (repos RepositoryList) LoadAttributes(ctx context.Context) error {
 		return err
 	}
 
-	return repos.LoadLanguageStats(ctx)
+	if err := repos.LoadLanguageStats(ctx); err != nil {
+		return err
+	}
+	return loadRinspaceRepositoryPresentations(ctx, repos)
 }
 
 // SearchRepoOptions holds the search options
 type SearchRepoOptions struct {
 	db.ListOptions
-	Actor           *user_model.User
-	Keyword         string
-	OwnerID         int64
-	PriorityOwnerID int64
-	TeamID          int64
-	OrderBy         db.SearchOrderBy
-	Private         bool // Include private repositories in results
-	StarredByID     int64
-	WatchedByID     int64
-	AllPublic       bool // Include also all public repositories of users and public organisations
-	AllLimited      bool // Include also all public repositories of limited organisations
+	Actor                  *user_model.User
+	Keyword                string
+	OwnerID                int64
+	PriorityOwnerID        int64
+	RinspaceContentOwnerID int64
+	TeamID                 int64
+	OrderBy                db.SearchOrderBy
+	Private                bool // Include private repositories in results
+	StarredByID            int64
+	WatchedByID            int64
+	AllPublic              bool // Include also all public repositories of users and public organisations
+	AllLimited             bool // Include also all public repositories of limited organisations
 	// None -> include public and private
 	// True -> include just private
 	// False -> include just public
@@ -414,6 +418,20 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 		accessCond := builder.NewCond()
 		if !opts.Collaborate.Value() {
 			accessCond = builder.Eq{"owner_id": opts.OwnerID}
+			if opts.RinspaceContentOwnerID == opts.OwnerID {
+				contentRepos := builder.Select("rinspace_repository_owner.repo_id").
+					From("rinspace_repository_owner").
+					Join("INNER", "rinspace_repository_presentation", "rinspace_repository_presentation.repo_id = rinspace_repository_owner.repo_id").
+					Where(builder.Eq{"rinspace_repository_owner.user_id": opts.OwnerID}).
+					And(builder.In("rinspace_repository_presentation.content_type", RinspaceContentArticle, RinspaceContentBook, RinspaceContentPDF))
+				contentAccessCond := builder.In("`repository`.id", contentRepos)
+				if opts.Actor != nil {
+					contentAccessCond = contentAccessCond.And(AccessibleRepositoryCondition(opts.Actor, unit.TypeInvalid))
+				} else {
+					contentAccessCond = contentAccessCond.And(builder.Eq{"`repository`.is_private": false})
+				}
+				accessCond = accessCond.Or(contentAccessCond)
+			}
 		}
 
 		if opts.Collaborate.ValueOrDefault(true) {
@@ -479,6 +497,9 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 			likes := builder.NewCond()
 			for v := range strings.SplitSeq(opts.Keyword, ",") {
 				likes = likes.Or(builder.Like{"lower_name", strings.ToLower(v)})
+				likes = likes.Or(builder.In("`repository`.id", builder.Select("repo_id").
+					From("rinspace_repository_presentation").
+					Where(builder.Like{"LOWER(title)", strings.ToLower(v)})))
 
 				// If the string looks like "org/repo", match against that pattern too
 				if opts.TeamID == 0 && strings.Count(opts.Keyword, "/") == 1 {

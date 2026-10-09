@@ -4,11 +4,34 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	user_model "gitea.dev/models/user"
 )
+
+var ErrExplicitCredentialRejected = errors.New("explicit authorization credential was rejected")
+
+const CredentialIDDataKey = "RinspaceCredentialID"
+
+type Credential struct {
+	Method        string
+	ID            string
+	UID           string
+	SID           string
+	BindingID     string
+	RuntimeHandle string
+	Version       int64
+}
+
+// CredentialGate performs a final authorization check after a Gitea credential identifies a user.
+// Rinspace uses it to verify the parent session or personal credential epoch before granting access.
+type CredentialGate interface {
+	Verify(ctx context.Context, user *user_model.User, credential Credential) error
+}
 
 // Ensure the struct implements the interface.
 var (
@@ -18,12 +41,19 @@ var (
 // Group implements the Auth interface with serval Auth.
 type Group struct {
 	methods []Method
+	gate    CredentialGate
+}
+
+// SetCredentialGate sets the final authorization check for all methods in this group.
+func (b *Group) SetCredentialGate(gate CredentialGate) {
+	b.gate = gate
 }
 
 // NewGroup creates a new auth group
 func NewGroup(methods ...Method) *Group {
 	return &Group{
 		methods: methods,
+		gate:    DefaultRinspaceCredentialGate(),
 	}
 }
 
@@ -44,7 +74,14 @@ func (b *Group) Name() string {
 func (b *Group) Verify(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error) {
 	// Try to sign in with each of the enabled plugins
 	var retErr error
+	explicitCredential := strings.TrimSpace(req.Header.Get("Authorization")) != ""
 	for _, m := range b.methods {
+		if explicitCredential && isAmbientMethod(m.Name()) {
+			if retErr != nil {
+				return nil, retErr
+			}
+			return nil, ErrExplicitCredentialRejected
+		}
 		user, err := m.Verify(req, w, store, sess)
 		if err != nil {
 			if retErr == nil {
@@ -60,6 +97,18 @@ func (b *Group) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 		// If any method returns a user, we can stop trying.
 		// Return the user and ignore any error returned by previous methods.
 		if user != nil {
+			if b.gate != nil {
+				if err := b.gate.Verify(req.Context(), user, credentialFromRequest(req, m.Name(), store, sess)); err != nil {
+					// Reverse-proxy authentication may have just created or refreshed a
+					// local Gitea session before the Rinspace parent check runs.  Do not
+					// leave that ambient state behind when the final gate rejects it.
+					if sess != nil && isAmbientMethod(m.Name()) {
+						_ = sess.Flush()
+						_ = sess.Destroy(w, req)
+					}
+					return nil, err
+				}
+			}
 			if store.GetData()["AuthedMethod"] == nil {
 				store.GetData()["AuthedMethod"] = m.Name()
 			}
@@ -69,4 +118,29 @@ func (b *Group) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 
 	// If no method returns a user, return the error returned by the first method.
 	return nil, retErr
+}
+
+func isAmbientMethod(name string) bool {
+	return name == "session" || name == ReverseProxyMethodName || name == "sspi"
+}
+
+func credentialFromRequest(req *http.Request, method string, store DataStore, sess SessionStore) Credential {
+	credential := Credential{Method: method}
+	if value, ok := store.GetData()["LoginMethod"].(string); ok && value != "" {
+		credential.Method = value
+	}
+	if value, ok := store.GetData()[CredentialIDDataKey].(string); ok {
+		credential.ID = value
+	}
+	if credential.ID == "" && sess != nil && isAmbientMethod(method) {
+		credential.ID = sess.ID()
+	}
+	if method == ReverseProxyMethodName {
+		credential.UID = strings.TrimSpace(req.Header.Get("X-Rin-UID"))
+		credential.SID = strings.TrimSpace(req.Header.Get("X-Rin-Parent-SID"))
+		credential.BindingID = strings.TrimSpace(req.Header.Get("X-Rin-Binding-ID"))
+		credential.RuntimeHandle = strings.TrimSpace(req.Header.Get("X-Rin-Runtime-Handle"))
+		credential.Version, _ = strconv.ParseInt(strings.TrimSpace(req.Header.Get("X-Rin-Parent-Version")), 10, 64)
+	}
+	return credential
 }

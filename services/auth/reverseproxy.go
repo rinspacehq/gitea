@@ -6,6 +6,7 @@ package auth
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	user_model "gitea.dev/models/user"
@@ -130,6 +131,9 @@ func (r *ReverseProxy) Verify(req *http.Request, w http.ResponseWriter, store Da
 
 // isAutoRegisterAllowed checks if EnableReverseProxyAutoRegister setting is true
 func (r *ReverseProxy) isAutoRegisterAllowed() bool {
+	if os.Getenv("RINSPACE_IDENTITY_STRICT") == "true" {
+		return false
+	}
 	return setting.Service.EnableReverseProxyAutoRegister
 }
 

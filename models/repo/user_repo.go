@@ -66,6 +66,11 @@ func GetStarredRepos(ctx context.Context, opts *StarredReposOptions) ([]*Reposit
 	return db.Find[Repository](ctx, opts)
 }
 
+// CountStarredRepos returns the permission-filtered count for the same query as GetStarredRepos.
+func CountStarredRepos(ctx context.Context, opts *StarredReposOptions) (int64, error) {
+	return db.Count[Repository](ctx, opts)
+}
+
 type WatchedReposOptions struct {
 	db.ListOptions
 	WatcherID      int64

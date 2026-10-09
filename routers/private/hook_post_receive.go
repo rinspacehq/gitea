@@ -130,6 +130,11 @@ func HookPostReceive(ctx *gitea_context.PrivateContext) {
 	if !hookPostReceiveUpdateRepoByOptions(ctx, opts, repo) {
 		return
 	}
+	if err := repo_service.EnqueueRinspacePublicationPushEvents(ctx, repo, updates); err != nil {
+		log.Error("Rinspace publication event not produced repository_id=%d error_code=event_not_produced: %v", repo.ID, err)
+		ctx.PrivateError(http.StatusInternalServerError, err, "failed to enqueue Rinspace publication events")
+		return
+	}
 
 	// push async updates
 	if err := repo_service.PushUpdates(updates...); err != nil {

@@ -429,6 +429,7 @@ func GrantApplicationOAuth(ctx *context.Context) {
 		handleServerError(ctx, form.State, form.RedirectURI)
 		return
 	}
+	createdGrant := false
 	if grant == nil {
 		grant, err = app.CreateGrant(ctx, ctx.Doer.ID, form.Scope)
 		if err != nil {
@@ -439,12 +440,20 @@ func GrantApplicationOAuth(ctx *context.Context) {
 			}, form.RedirectURI)
 			return
 		}
+		createdGrant = true
 	} else if grant.Scope != form.Scope {
 		handleAuthorizeError(ctx, AuthorizeError{
 			State:            form.State,
 			ErrorDescription: "a grant exists with different scope",
 			ErrorCode:        ErrorCodeServerError,
 		}, form.RedirectURI)
+		return
+	}
+	if err := auth_service.RegisterRinspacePersonalCredential(ctx, ctx.Doer.ID, fmt.Sprintf("oauth:%d", grant.ID)); err != nil {
+		if createdGrant {
+			_ = auth.RevokeOAuth2Grant(ctx, grant.ID, ctx.Doer.ID)
+		}
+		ctx.ServerError("RegisterRinspacePersonalCredential", err)
 		return
 	}
 

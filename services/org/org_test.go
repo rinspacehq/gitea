@@ -69,7 +69,7 @@ func TestOrg(t *testing.T) {
 		unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: org.ID, Visibility: structs.VisibleTypePrivate})
 	})
 
-	t.Run("ChangeVisibilityClearsWatchesAndStars", func(t *testing.T) {
+	t.Run("ChangeVisibilityPreservesWatchesAndStars", func(t *testing.T) {
 		// org3 is a public organization owning the public repo32
 		org := unittest.AssertExistsAndLoadBean(t, &organization.Organization{ID: 3})
 		require.Equal(t, structs.VisibleTypePublic, org.Visibility)
@@ -79,12 +79,12 @@ func TestOrg(t *testing.T) {
 		watcher := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
 		require.NoError(t, repo_model.WatchRepo(t.Context(), watcher, repo, true))
 		require.NoError(t, repo_model.StarRepo(t.Context(), watcher, repo, true))
-		unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{UserID: watcher.ID, RepoID: repo.ID})
+		watch := unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{UserID: watcher.ID, RepoID: repo.ID})
+		star := unittest.AssertExistsAndLoadBean(t, &repo_model.Star{UID: watcher.ID, RepoID: repo.ID})
 
 		require.NoError(t, ChangeOrganizationVisibility(t.Context(), org, structs.VisibleTypePrivate))
 
-		// making the org private must drop watches, not only stars, from users who can no longer see it
-		unittest.AssertNotExistsBean(t, &repo_model.Watch{UserID: watcher.ID, RepoID: repo.ID})
-		unittest.AssertNotExistsBean(t, &repo_model.Star{UID: watcher.ID, RepoID: repo.ID})
+		unittest.AssertExistsAndLoadBean(t, &repo_model.Watch{ID: watch.ID, CreatedUnix: watch.CreatedUnix})
+		unittest.AssertExistsAndLoadBean(t, &repo_model.Star{ID: star.ID, CreatedUnix: star.CreatedUnix})
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"gitea.dev/models/db"
+	rincontrol_model "gitea.dev/models/rincontrol"
 	"gitea.dev/modules/timeutil"
 
 	"xorm.io/builder"
@@ -32,7 +33,7 @@ func IsFollowing(ctx context.Context, userID, followID int64) bool {
 
 // FollowUser marks someone be another's follower.
 func FollowUser(ctx context.Context, user, follow *User) (err error) {
-	if user.ID == follow.ID || IsFollowing(ctx, user.ID, follow.ID) {
+	if user.ID == follow.ID {
 		return nil
 	}
 
@@ -41,6 +42,9 @@ func FollowUser(ctx context.Context, user, follow *User) (err error) {
 	}
 
 	return db.WithTx(ctx, func(ctx context.Context) error {
+		if IsFollowing(ctx, user.ID, follow.ID) {
+			return nil
+		}
 		if err = db.Insert(ctx, &Follow{UserID: user.ID, FollowID: follow.ID}); err != nil {
 			return err
 		}
@@ -52,17 +56,20 @@ func FollowUser(ctx context.Context, user, follow *User) (err error) {
 		if _, err = db.Exec(ctx, "UPDATE `user` SET num_following = num_following + 1 WHERE id = ?", user.ID); err != nil {
 			return err
 		}
-		return nil
+		return rincontrol_model.EnqueueSocialEvent(ctx, rincontrol_model.SocialEvent{EventType: "user.follow.changed", ActorUserID: user.ID, TargetUserID: follow.ID, Active: true})
 	})
 }
 
 // UnfollowUser unmarks someone as another's follower.
 func UnfollowUser(ctx context.Context, userID, followID int64) (err error) {
-	if userID == followID || !IsFollowing(ctx, userID, followID) {
+	if userID == followID {
 		return nil
 	}
 
 	return db.WithTx(ctx, func(ctx context.Context) error {
+		if !IsFollowing(ctx, userID, followID) {
+			return nil
+		}
 		if _, err = db.DeleteByBean(ctx, &Follow{UserID: userID, FollowID: followID}); err != nil {
 			return err
 		}
@@ -74,6 +81,6 @@ func UnfollowUser(ctx context.Context, userID, followID int64) (err error) {
 		if _, err = db.Exec(ctx, "UPDATE `user` SET num_following = num_following - 1 WHERE id = ?", userID); err != nil {
 			return err
 		}
-		return nil
+		return rincontrol_model.EnqueueSocialEvent(ctx, rincontrol_model.SocialEvent{EventType: "user.follow.changed", ActorUserID: userID, TargetUserID: followID, Active: false})
 	})
 }

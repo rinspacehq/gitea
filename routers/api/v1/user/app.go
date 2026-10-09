@@ -15,6 +15,7 @@ import (
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/api/v1/utils"
+	auth_service "gitea.dev/services/auth"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
 	"gitea.dev/services/forms"
@@ -150,6 +151,11 @@ func CreateAccessToken(ctx *context.APIContext) {
 	}
 
 	if err := auth_model.NewAccessToken(ctx, t); err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+	if err := auth_service.RegisterRinspacePersonalCredential(ctx, t.UID, fmt.Sprintf("pat:%d", t.ID)); err != nil {
+		_ = auth_model.DeleteAccessTokenByID(ctx, t.ID, t.UID)
 		ctx.APIErrorInternal(err)
 		return
 	}

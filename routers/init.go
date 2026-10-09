@@ -52,6 +52,7 @@ import (
 	release_service "gitea.dev/services/release"
 	repo_service "gitea.dev/services/repository"
 	"gitea.dev/services/repository/archiver"
+	rincontrol_service "gitea.dev/services/rincontrol"
 	"gitea.dev/services/task"
 	"gitea.dev/services/uinotification"
 	"gitea.dev/services/webhook"
@@ -155,6 +156,7 @@ func InitWebInstalled(ctx context.Context) {
 	mustInit(automerge.Init)
 	mustInit(task.Init)
 	mustInit(repo_migrations.Init)
+	mustInit(rincontrol_service.Init)
 	eventsource.GetManager().Init()
 	mustInitCtx(ctx, mailer_incoming.Init)
 
@@ -183,6 +185,7 @@ func NormalRoutes() *web.Router {
 	r.Mount("/", web_routers.Routes())
 	r.Mount("/api/v1", apiv1.Routes())
 	r.Mount("/api/internal", private.Routes())
+	r.Mount("/internal/v1/rin-control", rincontrol_service.MaintenanceRoutes())
 
 	r.Post("/-/fetch-redirect", common.FetchRedirectDelegate)
 

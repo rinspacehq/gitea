@@ -559,6 +559,10 @@ func GetByID(ctx *context.APIContext) {
 		ctx.APIErrorNotFound()
 		return
 	}
+	if err := repo.LoadRinspacePresentation(ctx); err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
 
 	permission, err := access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
 	if err != nil {

@@ -194,8 +194,12 @@ type Repository struct {
 
 	commonRenderingMetas map[string]string `xorm:"-"`
 
-	Units           []*RepoUnit   `xorm:"-"`
-	PrimaryLanguage *LanguageStat `xorm:"-"`
+	Units                     []*RepoUnit   `xorm:"-"`
+	PrimaryLanguage           *LanguageStat `xorm:"-"`
+	RinspaceTitle             string        `xorm:"-"`
+	RinspaceContentType       string        `xorm:"-"`
+	RinspaceContentOwnerIDs   []int64       `xorm:"-"`
+	RinspaceProjectionVersion int64         `xorm:"-"`
 
 	IsFork                          bool               `xorm:"INDEX NOT NULL DEFAULT false"`
 	ForkID                          int64              `xorm:"INDEX"`
@@ -220,6 +224,17 @@ type Repository struct {
 	CreatedUnix  timeutil.TimeStamp `xorm:"INDEX created"`
 	UpdatedUnix  timeutil.TimeStamp `xorm:"INDEX updated"`
 	ArchivedUnix timeutil.TimeStamp `xorm:"DEFAULT 0"`
+}
+
+func (repo *Repository) RinspaceDisplayName() string {
+	if strings.TrimSpace(repo.RinspaceTitle) == "" {
+		return repo.Name
+	}
+	return repo.Name + "/[-" + repo.RinspaceTitle + "]"
+}
+
+func (repo *Repository) RinspaceDisplayFullName() string {
+	return repo.OwnerName + "/" + repo.RinspaceDisplayName()
 }
 
 func init() {
@@ -350,7 +365,7 @@ func (repo *Repository) LoadAttributes(ctx context.Context) error {
 			break
 		}
 	}
-	return nil
+	return repo.LoadRinspacePresentation(ctx)
 }
 
 // FullName returns the repository full name
