@@ -4,7 +4,6 @@
 package private
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 	auth_model "gitea.dev/models/auth"
 	rinauth_model "gitea.dev/models/rinauth"
 	user_model "gitea.dev/models/user"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/private"
 	"gitea.dev/modules/util"
 	asymkey_service "gitea.dev/services/asymkey"
@@ -23,18 +23,17 @@ import (
 )
 
 type rinspaceRevocationEvent struct {
-	EventID       string          `json:"eventId"`
-	AggregateType string          `json:"aggregateType"`
-	AggregateID   string          `json:"aggregateId"`
-	EventType     string          `json:"eventType"`
-	Version       int64           `json:"version"`
-	Payload       json.RawMessage `json:"payload"`
+	EventID       string     `json:"eventId"`
+	AggregateType string     `json:"aggregateType"`
+	AggregateID   string     `json:"aggregateId"`
+	EventType     string     `json:"eventType"`
+	Version       int64      `json:"version"`
+	Payload       json.Value `json:"payload"`
 }
 
 func ReceiveRinspaceRevocation(ctx *context.PrivateContext) {
 	ctx.Req.Body = http.MaxBytesReader(ctx.Resp, ctx.Req.Body, 16<<10)
-	decoder := json.NewDecoder(ctx.Req.Body)
-	decoder.DisallowUnknownFields()
+	decoder := json.NewDecoderDisallowUnknownFields(ctx.Req.Body)
 	var event rinspaceRevocationEvent
 	if decoder.Decode(&event) != nil || decoder.Decode(&struct{}{}) != io.EOF {
 		ctx.JSON(http.StatusBadRequest, private.Response{UserMsg: "invalid revocation event"})

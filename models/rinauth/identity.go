@@ -6,18 +6,20 @@ package rinauth
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
 
 	"gitea.dev/models/db"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/timeutil"
 )
 
-var ErrBindingNotFound = errors.New("Rinspace identity binding not found")
-var ErrRevocationReceiptConflict = errors.New("Rinspace revocation receipt conflict")
-var revocationEventIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var (
+	ErrBindingNotFound           = errors.New("Rinspace identity binding not found")
+	ErrRevocationReceiptConflict = errors.New("Rinspace revocation receipt conflict")
+	revocationEventIDPattern     = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+)
 
 type UserIdentity struct {
 	UserID      int64              `xorm:"pk"`

@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/timeutil"
 )
 
@@ -178,8 +178,7 @@ func validateRepositoryPushOutboxEvent(event *OutboxEvent) error {
 		return errors.New("repository push outbox identity is invalid")
 	}
 	var envelope repositoryPushEnvelope
-	decoder := json.NewDecoder(strings.NewReader(event.Payload))
-	decoder.DisallowUnknownFields()
+	decoder := json.NewDecoderDisallowUnknownFields(strings.NewReader(event.Payload))
 	if err := decoder.Decode(&envelope); err != nil {
 		return fmt.Errorf("decode repository push envelope: %w", err)
 	}

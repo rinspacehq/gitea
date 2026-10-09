@@ -56,6 +56,11 @@ func Indent(dst *bytes.Buffer, src []byte, prefix, indent string) error {
 	return DefaultJSONHandler.Indent(dst, src, prefix, indent)
 }
 
+// Compact appends compacted JSON from src to dst.
+func Compact(dst *bytes.Buffer, src []byte) error {
+	return json.Compact(dst, src)
+}
+
 // MarshalIndent copied from encoding/json
 func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
 	b, err := Marshal(v)

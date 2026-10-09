@@ -22,4 +22,10 @@ func NewDecoderCaseInsensitive(reader io.Reader) Decoder {
 	return DefaultJSONHandler.NewDecoder(reader)
 }
 
+func NewDecoderDisallowUnknownFields(reader io.Reader) Decoder {
+	decoder := json.NewDecoder(reader)
+	decoder.DisallowUnknownFields()
+	return decoder
+}
+
 type Value = json.RawMessage
