@@ -116,7 +116,7 @@ jobs:
   accept:
     if: github.repository == 'rinspacehq/gitea' && inputs.operation == 'accept-candidate'
     permissions:
-      contents: write
+      contents: read
       packages: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -193,12 +193,11 @@ jobs:
             test "$accepted_actual" = "$CANDIDATE_DIGEST"
           fi
           existing_ref="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" --jq .object.sha 2>/dev/null || true)"
-          if [[ -n "$existing_ref" ]]; then
-            test "$existing_ref" = "$SOURCE_COMMIT"
-          else
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-              -f ref="refs/tags/${VERSION}" -f sha="$SOURCE_COMMIT" >/dev/null
+          if [[ -z "$existing_ref" ]]; then
+            echo "Create refs/tags/$VERSION at $SOURCE_COMMIT with a write-authorized maintainer credential, then rerun this idempotent acceptance." >&2
+            exit 1
           fi
+          test "$existing_ref" = "$SOURCE_COMMIT"
           {
             echo "## Accepted Rinspace Gitea candidate"
             echo
