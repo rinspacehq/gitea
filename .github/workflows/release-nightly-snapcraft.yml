@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build-and-publish:
+    if: github.repository == 'go-gitea/gitea'
     runs-on: ubuntu-latest
 
     env:

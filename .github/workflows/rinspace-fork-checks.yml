@@ -1,0 +1,55 @@
+name: rinspace-fork-checks
+
+on:
+  pull_request:
+    branches:
+      - "rinspace-*"
+  push:
+    branches:
+      - "rinspace-*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  focused-go:
+    if: github.repository == 'rinspacehq/gitea'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOMAXPROCS: "1"
+      GOMEMLIMIT: 2GiB
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: ./.github/actions/go-setup
+      - name: Check whitespace and Go formatting
+        shell: bash
+        run: |
+          git diff --check
+          git ls-files -z '*.go' | xargs -0 gofmt -l > /tmp/unformatted-go
+          test ! -s /tmp/unformatted-go || { cat /tmp/unformatted-go; exit 1; }
+      - name: Test Rinspace models and services
+        run: go test -p 1 -vet=off ./models/rinauth ./models/rincontrol ./services/rincontrol
+      - name: Test affected authentication and repository behavior
+        run: |
+          go test -p 1 -vet=off ./services/auth
+          go test -p 1 -vet=off ./services/repository -run 'Rinspace|Publication'
+      - name: Compile migration tests
+        run: go test -c -o /dev/null ./models/migrations/v1_27
+
+  dockerfile-check:
+    if: github.repository == 'rinspacehq/gitea'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Validate rootful Dockerfile
+        run: docker buildx build --check --platform linux/amd64 .
+      - name: Validate rootless Dockerfile
+        run: docker buildx build --check --platform linux/amd64 --file Dockerfile.rootless .

@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   binary:
+    if: github.repository == 'go-gitea/gitea'
     runs-on: namespace-profile-gitea-release-binary
     permissions:
       contents: read
@@ -100,6 +101,7 @@ jobs:
           gh release create "$TAG" --title "$TAG" --notes-from-tag dist/release/*
 
   container:
+    if: github.repository == 'go-gitea/gitea'
     runs-on: namespace-profile-gitea-release-docker
     permissions:
       contents: read

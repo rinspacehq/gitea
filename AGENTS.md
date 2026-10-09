@@ -1,3 +1,17 @@
+- This repository is the `rinspacehq/gitea` fork of `go-gitea/gitea`. Develop
+  Rinspace changes on the current `rinspace-<major>.<minor>` maintenance line.
+- Verify `git remote -v` before network operations. `origin` must be
+  `rinspacehq/gitea`; the official Gitea repository is fetch-only `upstream`.
+- Preserve the upstream MIT License, authorship, tags, and history. Rinspace
+  changes in this fork are MIT licensed as well.
+- Keep Rinspace integration disabled unless its documented environment is
+  explicitly configured. Never commit production endpoints, credentials,
+  databases, repository data, or deployment configuration.
+- Release only from an immutable reviewed commit through the Rinspace release
+  workflow. Consumers must pin the resulting OCI digest, never a branch or
+  mutable tag.
+- Do not enable the upstream Gitea release, nightly, Snapcraft, bot, or
+  translation workflows for this fork.
 - Use `make help` to find available development targets
 - Run `make fmt` to format `.go` files, and run `make lint-go` to lint them
 - Run `make lint-js` to lint `.ts` files

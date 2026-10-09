@@ -1,0 +1,97 @@
+name: rinspace-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Full reviewed commit on rinspace-1.27
+        required: true
+        type: string
+      version:
+        description: Version such as v1.27.2-rinspace.1-rc.1
+        required: true
+        type: string
+
+concurrency:
+  group: rinspace-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  container:
+    if: github.repository == 'rinspacehq/gitea'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: rinspace-gitea-release
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - name: Verify immutable release input
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$VERSION" =~ ^v1\.27\.2-rinspace\.[1-9][0-9]*(-rc\.[1-9][0-9]*)?$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git fetch origin refs/heads/rinspace-1.27:refs/remotes/origin/rinspace-1.27 --force
+          git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/rinspace-1.27
+          test "$(git status --porcelain)" = ""
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Refuse a mutable version tag
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if docker buildx imagetools inspect "ghcr.io/rinspacehq/gitea:$VERSION" >/dev/null 2>&1; then
+            echo "The requested GHCR tag already exists and will not be overwritten." >&2
+            exit 1
+          fi
+      - name: Build and publish exact source
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/rinspacehq/gitea:${{ inputs.version }}
+          build-args: |
+            GITEA_VERSION=${{ inputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/rinspacehq/gitea
+            org.opencontainers.image.revision=${{ inputs.source_commit }}
+            org.opencontainers.image.version=${{ inputs.version }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.base.name=docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+          provenance: mode=max
+          sbom: true
+      - name: Record immutable output
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          VERSION: ${{ inputs.version }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "## Rinspace Gitea image"
+            echo
+            echo "- Source: \`$SOURCE_COMMIT\`"
+            echo "- Version: \`$VERSION\`"
+            echo "- Platform: \`linux/amd64\`"
+            echo "- Image: \`ghcr.io/rinspacehq/gitea@$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"

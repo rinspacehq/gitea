@@ -1,3 +1,12 @@
+> [!IMPORTANT]
+> This repository is the Rinspace-maintained fork of
+> [Gitea](https://github.com/go-gitea/gitea). The current maintenance line adds
+> Rinspace identity, repository presentation, social-state, and Control Plane
+> publication integration while preserving ordinary Gitea behavior when the
+> integration is disabled. See the [fork documentation](docs/rinspace/README.md)
+> and [Rinspace changelog](RINSPACE_CHANGELOG.md). The project remains licensed
+> under Gitea's MIT License.
+
 # Gitea
 
 [![](https://github.com/go-gitea/gitea/actions/workflows/release-nightly.yml/badge.svg?branch=main)](https://github.com/go-gitea/gitea/actions/workflows/release-nightly.yml?query=branch%3Amain "Release Nightly")

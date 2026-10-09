@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   labeler:
+    if: github.repository == 'go-gitea/gitea'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,7 +23,7 @@ jobs:
           sync-labels: true
 
   pr-title:
-    if: github.event.pull_request.draft == false
+    if: github.repository == 'go-gitea/gitea' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
