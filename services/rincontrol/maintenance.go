@@ -8,7 +8,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	rincontrol_model "gitea.dev/models/rincontrol"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/web"
 )
@@ -279,8 +279,7 @@ func (server *MaintenanceServer) now() time.Time {
 }
 
 func decodeMaintenanceJSON(request *http.Request, target any) error {
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
+	decoder := json.NewDecoderDisallowUnknownFields(request.Body)
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}

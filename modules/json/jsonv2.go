@@ -92,4 +92,8 @@ func NewDecoderCaseInsensitive(reader io.Reader) Decoder {
 	return &jsonV2Decoder{reader: reader, opts: jsonV2.unmarshalCaseInsensitiveOptions}
 }
 
+func NewDecoderDisallowUnknownFields(reader io.Reader) Decoder {
+	return &jsonV2Decoder{reader: reader, opts: jsonv2.JoinOptions(jsonV2.unmarshalOptions, jsonv2.RejectUnknownMembers(true))}
+}
+
 type Value = jsontext.Value

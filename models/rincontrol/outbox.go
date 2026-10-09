@@ -7,13 +7,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"gitea.dev/models/db"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/timeutil"
 )
 

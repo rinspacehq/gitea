@@ -5,7 +5,6 @@ package rincontrol
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/timeutil"
 )
 
@@ -113,8 +113,7 @@ func validatePublicationHeartbeatOutboxEvent(event *OutboxEvent) error {
 		return errors.New("publication heartbeat outbox identity is invalid")
 	}
 	var envelope publicationHeartbeatEnvelope
-	decoder := json.NewDecoder(strings.NewReader(event.Payload))
-	decoder.DisallowUnknownFields()
+	decoder := json.NewDecoderDisallowUnknownFields(strings.NewReader(event.Payload))
 	if err := decoder.Decode(&envelope); err != nil {
 		return fmt.Errorf("decode publication heartbeat envelope: %w", err)
 	}
