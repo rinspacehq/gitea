@@ -62,7 +62,7 @@ func (j *JSONv2) NewEncoder(writer io.Writer) Encoder {
 }
 
 func (j *JSONv2) NewDecoder(reader io.Reader) Decoder {
-	return &jsonV2Decoder{reader: reader, opts: j.unmarshalOptions}
+	return &jsonV2Decoder{decoder: jsontext.NewDecoder(reader), opts: j.unmarshalOptions}
 }
 
 // Indent implements Interface using standard library (JSON v2 doesn't have Indent yet)
@@ -80,20 +80,20 @@ func (e *jsonV2Encoder) Encode(v any) error {
 }
 
 type jsonV2Decoder struct {
-	reader io.Reader
-	opts   jsonv2.Options
+	decoder *jsontext.Decoder
+	opts    jsonv2.Options
 }
 
 func (d *jsonV2Decoder) Decode(v any) error {
-	return jsonv2.UnmarshalRead(d.reader, v, d.opts)
+	return jsonv2.UnmarshalDecode(d.decoder, v, d.opts)
 }
 
 func NewDecoderCaseInsensitive(reader io.Reader) Decoder {
-	return &jsonV2Decoder{reader: reader, opts: jsonV2.unmarshalCaseInsensitiveOptions}
+	return &jsonV2Decoder{decoder: jsontext.NewDecoder(reader), opts: jsonV2.unmarshalCaseInsensitiveOptions}
 }
 
 func NewDecoderDisallowUnknownFields(reader io.Reader) Decoder {
-	return &jsonV2Decoder{reader: reader, opts: jsonv2.JoinOptions(jsonV2.unmarshalOptions, jsonv2.RejectUnknownMembers(true))}
+	return &jsonV2Decoder{decoder: jsontext.NewDecoder(reader), opts: jsonv2.JoinOptions(jsonV2.unmarshalOptions, jsonv2.RejectUnknownMembers(true))}
 }
 
 type Value = jsontext.Value

@@ -5,6 +5,7 @@ package json
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -34,4 +35,14 @@ func TestNewDecoderDisallowUnknownFields(t *testing.T) {
 	}
 	err := NewDecoderDisallowUnknownFields(strings.NewReader(`{"known":"value","unknown":true}`)).Decode(&value)
 	assert.Error(t, err)
+}
+
+func TestNewDecoderDisallowUnknownFieldsStreamsValues(t *testing.T) {
+	decoder := NewDecoderDisallowUnknownFields(strings.NewReader(`{"known":"value"}`))
+	var value struct {
+		Known string `json:"known"`
+	}
+	assert.NoError(t, decoder.Decode(&value))
+	assert.Equal(t, "value", value.Known)
+	assert.ErrorIs(t, decoder.Decode(&struct{}{}), io.EOF)
 }
