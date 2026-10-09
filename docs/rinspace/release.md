@@ -17,6 +17,17 @@ The first is a public candidate. The second means the same candidate bytes were
 accepted after public and private integration checks. A release note records
 production adoption separately; a tag alone does not claim adoption.
 
+## Current accepted release
+
+`v1.27.2-rinspace.1` accepts candidate `v1.27.2-rinspace.1-rc.1` without a
+rebuild. Both identify source commit
+`6b3025fa5c4bfe2666773d021432556237a97156`, source tree
+`94463063e1bdf968ad82116f38e8e7f38820d87c`, and OCI index
+`sha256:46a1928a68d09bc482c6a1bda6d1a3b68564cfe965be66e0db74eedbadba8026`.
+The final image tag is an additional registry name for that same manifest;
+private and production consumers continue to pin the digest. Production
+adoption remains pending until the separate protected rollout is complete.
+
 ## Build and publish
 
 The `rinspace-release` workflow is the only fork workflow allowed to publish a
@@ -26,9 +37,9 @@ public source, refuses to overwrite an existing version tag, and publishes only 
 `ghcr.io/rinspacehq/gitea/runtime`. This separate public package avoids exposing
 the historical private `ghcr.io/rinspacehq/gitea` package or its build layers.
 
-The workflow rejects final version strings. Acceptance promotes the exact
-candidate digest in release metadata and the private release lock; it must not
-rebuild the image under a final tag.
+The workflow rejects final version strings. Acceptance copies the exact
+candidate manifest to the final discovery tag, records the unchanged digest in
+release metadata and the private release lock, and must never rebuild it.
 
 The initial workflow builds `linux/amd64`, the current Rinspace production
 platform. Adding another platform changes the reviewed release scope and requires

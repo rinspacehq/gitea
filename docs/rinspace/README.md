@@ -6,6 +6,13 @@ from Gitea `v1.27.2` at
 `1dac1bb2f8593d4319125fa6bca9283000a2ddc2`. It retains the complete upstream
 history and MIT License.
 
+`v1.27.2-rinspace.1` is the first accepted fork release. It points to public
+source commit `6b3025fa5c4bfe2666773d021432556237a97156` and promotes the exact
+candidate OCI index
+`sha256:46a1928a68d09bc482c6a1bda6d1a3b68564cfe965be66e0db74eedbadba8026`
+after public and private integration checks. The release does not by itself
+claim that a production deployment has switched to this image.
+
 The fork adds four integration areas:
 
 - a strict credential gate backed by the Rinspace identity service;

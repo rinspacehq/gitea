@@ -4,7 +4,7 @@ This file records changes maintained by Rinspace in addition to the upstream
 [Gitea changelog](CHANGELOG.md). Release notes distinguish public candidates,
 private integration acceptance, and production adoption.
 
-## Unreleased — based on Gitea v1.27.2
+## v1.27.2-rinspace.1 — source accepted, production pending
 
 - Add strict Rinspace identity and credential lifecycle integration.
 - Add repository presentation metadata while preserving stable Git names.
@@ -16,4 +16,7 @@ private integration acceptance, and production adoption.
   public base images.
 - Add a manual, exact-commit GHCR release path with SBOM and provenance.
 
-No Rinspace release has been accepted or marked as production-adopted yet.
+The exact `v1.27.2-rinspace.1-rc.1` source and OCI index passed public checks,
+private integration, Git/SSH/Identity/Tags/code-session acceptance and rollback
+rehearsal. `v1.27.2-rinspace.1` promotes those same bytes without rebuilding.
+Production adoption is tracked separately and is still pending.
