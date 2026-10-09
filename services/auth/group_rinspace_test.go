@@ -73,6 +73,19 @@ func TestRinspaceMalformedAuthorizationDoesNotFallBackToReverseProxy(t *testing.
 	assert.Equal(t, 0, reverseProxy.called)
 }
 
+func TestRinspaceAuthorizationHeaderDoesNotDisableAmbientOnlyGroup(t *testing.T) {
+	session := &rinspaceTestMethod{name: "session", user: &user_model.User{ID: 7}}
+	group := NewGroup(session)
+	request := httptest.NewRequest(http.MethodGet, "/actions/jobs/42/logs", nil)
+	request.Header.Set("Authorization", "Basic ignored-by-this-router")
+
+	user, err := group.Verify(request, httptest.NewRecorder(), reqctx.ContextData{}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	assert.EqualValues(t, 7, user.ID)
+	assert.Equal(t, 1, session.called)
+}
+
 func TestRinspaceCredentialGateCoversSessionAndTokenMethods(t *testing.T) {
 	for _, methodName := range []string{"session", "oauth2", ReverseProxyMethodName} {
 		t.Run(methodName, func(t *testing.T) {

@@ -104,8 +104,9 @@ export async function apiCreateReview(requestContext: APIRequestContext, owner: 
 }
 
 export async function createProjectColumn(requestContext: APIRequestContext, owner: string, repo: string, projectID: string, title: string) {
+  // This is a web form route, so authenticate with the browser context's session cookie.
+  // Sending Basic credentials would mix explicit and ambient authentication methods.
   await apiRetry(() => requestContext.post(`${baseUrl()}/${owner}/${repo}/projects/${projectID}/columns/new`, {
-    headers: apiHeaders(),
     form: {title},
   }), 'createProjectColumn');
 }
