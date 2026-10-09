@@ -75,12 +75,16 @@ func (b *Group) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 	// Try to sign in with each of the enabled plugins
 	var retErr error
 	explicitCredential := strings.TrimSpace(req.Header.Get("Authorization")) != ""
+	explicitMethodAttempted := false
 	for _, m := range b.methods {
-		if explicitCredential && isAmbientMethod(m.Name()) {
+		if explicitCredential && isAmbientMethod(m.Name()) && explicitMethodAttempted {
 			if retErr != nil {
 				return nil, retErr
 			}
 			return nil, ErrExplicitCredentialRejected
+		}
+		if explicitCredential && !isAmbientMethod(m.Name()) {
+			explicitMethodAttempted = true
 		}
 		user, err := m.Verify(req, w, store, sess)
 		if err != nil {
