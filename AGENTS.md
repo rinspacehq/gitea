@@ -1,5 +1,13 @@
 - This repository is the `rinspacehq/gitea` fork of `go-gitea/gitea`. Develop
   Rinspace changes on the current `rinspace-<major>.<minor>` maintenance line.
+- The coordinated 2026-10-09 source activation makes this repository the sole
+  editable source for Rinspace Gitea. The accepted first release is
+  `v1.27.2-rinspace.1`, sourced from
+  `6b3025fa5c4bfe2666773d021432556237a97156` and the exact accepted runtime
+  index `sha256:46a1928a68d09bc482c6a1bda6d1a3b68564cfe965be66e0db74eedbadba8026`.
+  Production adoption remains a separate private deployment gate. Future
+  changes must enter this maintenance line first and reach private consumers
+  only through a reviewed immutable release.
 - Verify `git remote -v` before network operations. `origin` must be
   `rinspacehq/gitea`; the official Gitea repository is fetch-only `upstream`.
 - Preserve the upstream MIT License, authorship, tags, and history. Rinspace

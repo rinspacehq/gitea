@@ -5,7 +5,10 @@
 > publication integration while preserving ordinary Gitea behavior when the
 > integration is disabled. See the [fork documentation](docs/rinspace/README.md)
 > and [Rinspace changelog](RINSPACE_CHANGELOG.md). The project remains licensed
-> under Gitea's MIT License.
+> under Gitea's MIT License. The first source-accepted Rinspace release is
+> [`v1.27.2-rinspace.1`](https://github.com/rinspacehq/gitea/releases/tag/v1.27.2-rinspace.1),
+> which retains the exact privately verified candidate image digest. Source
+> acceptance and production adoption are recorded separately.
 
 # Gitea
 
