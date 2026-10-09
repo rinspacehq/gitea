@@ -20,11 +20,15 @@ production adoption separately; a tag alone does not claim adoption.
 ## Build and publish
 
 The `rinspace-release` workflow is the only fork workflow allowed to publish a
-container. It is manual and accepts a full reviewed source commit plus a version.
-It verifies that the commit belongs to `rinspace-1.27`, builds from public source,
-refuses to overwrite an existing version tag, and publishes only to
+container. It is manual and accepts a full reviewed source commit plus an RC
+version. It verifies that the commit belongs to `rinspace-1.27`, builds from
+public source, refuses to overwrite an existing version tag, and publishes only to
 `ghcr.io/rinspacehq/gitea/runtime`. This separate public package avoids exposing
 the historical private `ghcr.io/rinspacehq/gitea` package or its build layers.
+
+The workflow rejects final version strings. Acceptance promotes the exact
+candidate digest in release metadata and the private release lock; it must not
+rebuild the image under a final tag.
 
 The initial workflow builds `linux/amd64`, the current Rinspace production
 platform. Adding another platform changes the reviewed release scope and requires
