@@ -170,7 +170,7 @@ jobs:
             local digest=""
             local attempt
             for attempt in 1 2 3 4 5; do
-              digest="$(docker buildx imagetools inspect "$reference" 2>/dev/null | awk '$1 == "Digest:" { print $2; exit }')"
+              digest="$(docker buildx imagetools inspect --format '{{json .Manifest}}' "$reference" 2>/dev/null | jq -r '.digest // empty')"
               if [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
                 printf '%s\n' "$digest"
                 return 0
@@ -180,13 +180,16 @@ jobs:
             return 1
           }
           candidate_actual="$(registry_digest "$candidate")"
+          echo "Candidate descriptor: $candidate_actual"
           test "$candidate_actual" = "$CANDIDATE_DIGEST"
           if docker buildx imagetools inspect "$accepted" >/dev/null 2>&1; then
             accepted_actual="$(registry_digest "$accepted")"
+            echo "Existing accepted descriptor: $accepted_actual"
             test "$accepted_actual" = "$CANDIDATE_DIGEST"
           else
             docker buildx imagetools create --tag "$accepted" "$candidate"
             accepted_actual="$(registry_digest "$accepted")"
+            echo "Published accepted descriptor: $accepted_actual"
             test "$accepted_actual" = "$CANDIDATE_DIGEST"
           fi
           existing_ref="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" --jq .object.sha 2>/dev/null || true)"
