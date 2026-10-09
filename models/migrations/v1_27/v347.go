@@ -13,7 +13,7 @@ type rinControlDeliveryControl struct {
 	State           string             `xorm:"VARCHAR(16) NOT NULL DEFAULT 'enabled'"`
 	ChangeID        string             `xorm:"VARCHAR(128) NOT NULL DEFAULT ''"`
 	ReasonCode      string             `xorm:"VARCHAR(32) NOT NULL DEFAULT ''"`
-	PausedUntilUnix timeutil.TimeStamp `xorm:"INDEX NOT NULL DEFAULT 0"`
+	PausedUntilUnix timeutil.TimeStamp `xorm:"NOT NULL DEFAULT 0"`
 	Version         int64              `xorm:"NOT NULL DEFAULT 1"`
 	LastAction      string             `xorm:"VARCHAR(16) NOT NULL DEFAULT ''"`
 	LastRequestHash string             `xorm:"CHAR(64) NOT NULL DEFAULT ''"`
