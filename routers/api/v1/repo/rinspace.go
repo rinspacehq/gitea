@@ -23,7 +23,7 @@ func GetRinspaceSocial(ctx *context.APIContext) {
 		ctx.APIError(http.StatusBadRequest, "actor_user_id is invalid")
 		return
 	}
-	active := false
+	var active bool
 	switch ctx.FormString("relation") {
 	case "star":
 		active = repo_model.IsStaring(ctx, actorID, ctx.Repo.Repository.ID)

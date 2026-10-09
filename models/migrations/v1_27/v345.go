@@ -10,13 +10,6 @@ import (
 	"xorm.io/xorm/schemas"
 )
 
-type rinControlPublicationOutbox struct {
-	ID      int64  `xorm:"pk autoincr"`
-	EventID string `xorm:"UNIQUE VARCHAR(240) NOT NULL"`
-}
-
-func (*rinControlPublicationOutbox) TableName() string { return "rin_control_outbox" }
-
 // ExpandRinControlOutboxForPublicationEvents widens the deterministic push
 // identity while retaining all existing social-event rows.
 func ExpandRinControlOutboxForPublicationEvents(x db.EngineMigration) error {

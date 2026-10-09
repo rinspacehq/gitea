@@ -4,7 +4,6 @@
 package rincontrol
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -118,5 +117,5 @@ func TestPublicationDeliveryConcurrentChangeIDConflict(t *testing.T) {
 	_, err = PausePublicationDelivery(t.Context(), PauseDeliveryRequest{
 		ChangeID: "RCP-LEASE-0004", ReasonCode: "incident_containment", Until: now.Add(time.Minute),
 	}, now)
-	assert.True(t, errors.Is(err, ErrDeliveryControlConflict))
+	assert.ErrorIs(t, err, ErrDeliveryControlConflict)
 }
