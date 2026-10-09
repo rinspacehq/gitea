@@ -9575,6 +9575,35 @@
           "repo_transfer": {
             "$ref": "#/components/schemas/RepoTransfer"
           },
+          "rinspace_content_owner_ids": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array",
+            "x-go-name": "RinspaceContentOwnerIDs"
+          },
+          "rinspace_content_type": {
+            "type": "string",
+            "x-go-name": "RinspaceContentType"
+          },
+          "rinspace_display_full_name": {
+            "type": "string",
+            "x-go-name": "RinspaceDisplayFullName"
+          },
+          "rinspace_display_name": {
+            "type": "string",
+            "x-go-name": "RinspaceDisplayName"
+          },
+          "rinspace_projection_version": {
+            "format": "int64",
+            "type": "integer",
+            "x-go-name": "RinspaceProjectionVersion"
+          },
+          "rinspace_title": {
+            "type": "string",
+            "x-go-name": "RinspaceTitle"
+          },
           "size": {
             "format": "int64",
             "type": "integer",
