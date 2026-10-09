@@ -5,7 +5,6 @@ package private
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -139,7 +138,7 @@ func deleteNativeCredential(ctx *context.PrivateContext, userID int64, ref strin
 	kind, rawID, ok := strings.Cut(ref, ":")
 	id, err := strconv.ParseInt(rawID, 10, 64)
 	if !ok || err != nil || id <= 0 {
-		return fmt.Errorf("invalid credential reference")
+		return errors.New("invalid credential reference")
 	}
 	switch kind {
 	case "pat":
@@ -147,13 +146,13 @@ func deleteNativeCredential(ctx *context.PrivateContext, userID int64, ref strin
 	case "oauth":
 		err = auth_model.RevokeOAuth2Grant(ctx, id, userID)
 	case "ssh":
-		user, err := user_model.GetUserByID(ctx, userID)
-		if err != nil {
-			return err
+		user, getErr := user_model.GetUserByID(ctx, userID)
+		if getErr != nil {
+			return getErr
 		}
 		err = asymkey_service.DeletePublicKey(ctx, user, id)
 	default:
-		return fmt.Errorf("unsupported credential kind")
+		return errors.New("unsupported credential kind")
 	}
 	if errors.Is(err, util.ErrNotExist) {
 		return nil

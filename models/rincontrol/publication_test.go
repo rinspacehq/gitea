@@ -4,13 +4,13 @@
 package rincontrol
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"gitea.dev/models/db"
 	"gitea.dev/models/unittest"
+	"gitea.dev/modules/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
