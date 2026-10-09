@@ -64,11 +64,7 @@ func StarRepo(ctx context.Context, doer *user_model.User, repo *Repository, star
 				return err
 			}
 		}
-		if err := rincontrol_model.EnqueueSocialEvent(ctx, rincontrol_model.SocialEvent{EventType: "repository.star.changed", ActorUserID: doer.ID, RepositoryID: repo.ID, Active: star}); err != nil {
-			return err
-		}
-
-		return nil
+		return rincontrol_model.EnqueueSocialEvent(ctx, rincontrol_model.SocialEvent{EventType: "repository.star.changed", ActorUserID: doer.ID, RepositoryID: repo.ID, Active: star})
 	})
 }
 
