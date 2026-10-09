@@ -86,6 +86,21 @@ func TestRinspaceAuthorizationHeaderDoesNotDisableAmbientOnlyGroup(t *testing.T)
 	assert.Equal(t, 1, session.called)
 }
 
+func TestRinspaceProtocolCredentialIgnoredByIncompatibleMethodAllowsAmbientLogin(t *testing.T) {
+	oauth := &rinspaceTestMethod{name: "oauth2"}
+	session := &rinspaceTestMethod{name: "session", user: &user_model.User{ID: 7}}
+	group := NewGroup(oauth, session)
+	request := httptest.NewRequest(http.MethodPost, "/login/oauth/access_token", nil)
+	request.SetBasicAuth("oauth-client", "oauth-secret")
+
+	user, err := group.Verify(request, httptest.NewRecorder(), reqctx.ContextData{}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	assert.EqualValues(t, 7, user.ID)
+	assert.Equal(t, 1, oauth.called)
+	assert.Equal(t, 1, session.called)
+}
+
 func TestRinspaceCredentialGateCoversSessionAndTokenMethods(t *testing.T) {
 	for _, methodName := range []string{"session", "oauth2", ReverseProxyMethodName} {
 		t.Run(methodName, func(t *testing.T) {

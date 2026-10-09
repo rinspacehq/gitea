@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	user_model "gitea.dev/models/user"
+	"gitea.dev/modules/auth/httpauth"
 )
 
 var ErrExplicitCredentialRejected = errors.New("explicit authorization credential was rejected")
@@ -74,7 +75,9 @@ func (b *Group) Name() string {
 func (b *Group) Verify(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error) {
 	// Try to sign in with each of the enabled plugins
 	var retErr error
-	explicitCredential := strings.TrimSpace(req.Header.Get("Authorization")) != ""
+	authorization := strings.TrimSpace(req.Header.Get("Authorization"))
+	explicitCredential := authorization != ""
+	_, explicitCredentialParsed := httpauth.ParseAuthorizationHeader(authorization)
 	explicitMethodAttempted := false
 	for _, m := range b.methods {
 		if explicitCredential && isAmbientMethod(m.Name()) && explicitMethodAttempted {
@@ -83,10 +86,15 @@ func (b *Group) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 			}
 			return nil, ErrExplicitCredentialRejected
 		}
-		if explicitCredential && !isAmbientMethod(m.Name()) {
+		user, err := m.Verify(req, w, store, sess)
+		if explicitCredential && !isAmbientMethod(m.Name()) && (!explicitCredentialParsed || user != nil || err != nil) {
+			// A valid Authorization scheme may belong to a protocol-specific
+			// handler instead of this method (for example, an LFS bearer token
+			// reaching Basic auth or OAuth client Basic auth reaching OAuth2).
+			// Count the method only when it actually accepted or rejected the
+			// credential. Malformed headers still block ambient fallback.
 			explicitMethodAttempted = true
 		}
-		user, err := m.Verify(req, w, store, sess)
 		if err != nil {
 			if retErr == nil {
 				retErr = err
