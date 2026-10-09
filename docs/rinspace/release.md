@@ -23,7 +23,8 @@ The `rinspace-release` workflow is the only fork workflow allowed to publish a
 container. It is manual and accepts a full reviewed source commit plus a version.
 It verifies that the commit belongs to `rinspace-1.27`, builds from public source,
 refuses to overwrite an existing version tag, and publishes only to
-`ghcr.io/rinspacehq/gitea`.
+`ghcr.io/rinspacehq/gitea/runtime`. This separate public package avoids exposing
+the historical private `ghcr.io/rinspacehq/gitea` package or its build layers.
 
 The initial workflow builds `linux/amd64`, the current Rinspace production
 platform. Adding another platform changes the reviewed release scope and requires

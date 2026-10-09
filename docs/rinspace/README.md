@@ -64,7 +64,7 @@ of this source repository.
 
 ## Images and consumption
 
-Release images are published as `ghcr.io/rinspacehq/gitea`. A deployment should
+Release images are published as `ghcr.io/rinspacehq/gitea/runtime`. A deployment should
 record all of the following together:
 
 - the public source commit and upstream base;
