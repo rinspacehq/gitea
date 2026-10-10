@@ -35,9 +35,11 @@ promote a container. Its `build-candidate` operation accepts a full reviewed
 source commit plus an RC version. It verifies that the commit belongs to
 `rinspace-1.27`, builds from public source, refuses to overwrite an existing
 version tag, and publishes only to `ghcr.io/rinspacehq/gitea/runtime`. Its
-`accept-candidate` operation requires the exact RC digest, copies that manifest
-to the final discovery tag, verifies that the digest stayed unchanged, and
-creates the matching Git tag at the same source commit. This separate public
+Before acceptance, a maintainer with repository write permission creates the
+matching lightweight Git tag at the reviewed source commit. The
+`accept-candidate` operation requires that exact tag and RC digest, copies the
+manifest to the final discovery tag, and verifies that both identities and the
+digest stayed unchanged. This separate public
 package avoids exposing the historical private `ghcr.io/rinspacehq/gitea`
 package or its build layers.
 
