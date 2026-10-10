@@ -17,30 +17,55 @@ permissions:
   contents: read
 
 jobs:
-  focused-go:
+  focused_go_checks:
+    name: ${{ matrix.name }}
     if: github.repository == 'rinspacehq/gitea'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GOMAXPROCS: "1"
       GOMEMLIMIT: 2GiB
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - name: Rinspace formatting
+            command: |
+              git diff --check
+              git ls-files -z '*.go' | xargs -0 gofmt -l > /tmp/unformatted-go
+              test ! -s /tmp/unformatted-go || { cat /tmp/unformatted-go; exit 1; }
+          - name: Rinspace models and control
+            command: go test -p 1 -vet=off ./models/rinauth ./models/rincontrol ./services/rincontrol
+          - name: Authentication behavior
+            command: go test -p 1 -vet=off ./services/auth
+          - name: Repository behavior
+            command: go test -p 1 -vet=off ./services/repository -run 'Rinspace|Publication'
+          - name: Migration compile
+            command: go test -c -o /dev/null ./models/migrations/v1_27
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: ./.github/actions/go-setup
-      - name: Check whitespace and Go formatting
+      - name: Run ${{ matrix.name }}
         shell: bash
+        run: ${{ matrix.command }}
+
+  focused-go:
+    name: focused-go
+    if: ${{ always() && github.repository == 'rinspacehq/gitea' }}
+    needs: [focused_go_checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every named Go check
+        env:
+          CHECKS_RESULT: ${{ needs.focused_go_checks.result }}
         run: |
-          git diff --check
-          git ls-files -z '*.go' | xargs -0 gofmt -l > /tmp/unformatted-go
-          test ! -s /tmp/unformatted-go || { cat /tmp/unformatted-go; exit 1; }
-      - name: Test Rinspace models and services
-        run: go test -p 1 -vet=off ./models/rinauth ./models/rincontrol ./services/rincontrol
-      - name: Test affected authentication and repository behavior
-        run: |
-          go test -p 1 -vet=off ./services/auth
-          go test -p 1 -vet=off ./services/repository -run 'Rinspace|Publication'
-      - name: Compile migration tests
-        run: go test -c -o /dev/null ./models/migrations/v1_27
+          if [ "${CHECKS_RESULT}" != 'success' ]; then
+            echo '::error title=Rinspace Go checks failed::Open the named failed check above for its focused log.'
+            exit 1
+          fi
+          echo 'All Rinspace Go checks passed.'
 
   dockerfile-check:
     if: github.repository == 'rinspacehq/gitea'
