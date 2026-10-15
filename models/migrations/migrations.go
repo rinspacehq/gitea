@@ -426,6 +426,7 @@ func prepareMigrationTasks() []*migration {
 		newMigration(346, "Ensure Rin Control publication event ID capacity", v1_27.EnsureRinControlPublicationEventIDCapacity),
 		newMigration(347, "Add Rin Control bounded delivery maintenance lease", v1_27.AddRinControlDeliveryControls),
 		newMigration(348, "Add Rinspace identity and credential bindings", v1_27.AddRinspaceIdentityBindings),
+		newMigration(349, "Add bounded Rinspace editor catalog indexes", v1_27.AddRinspaceEditorCatalogIndexes),
 	}
 	return preparedMigrations
 }

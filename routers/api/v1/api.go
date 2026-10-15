@@ -1187,6 +1187,9 @@ func Routes() *web.Router {
 			m.Post("/gpg_key_verify", rejectPublicOnly(), bind(api.VerifyGPGKeyOption{}), user.VerifyUserGPGKey)
 
 			// (repo scope)
+			m.Get("/rinspace-editor/projects", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository), user.ListRinspaceEditorProjects)
+
+			// (repo scope)
 			m.Combo("/repos", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository)).Get(user.ListMyRepos).
 				Post(rejectPublicOnly(), bind(api.CreateRepoOption{}), repo.Create)
 
