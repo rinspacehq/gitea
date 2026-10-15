@@ -84,8 +84,10 @@ func rinspaceEditorSources(opts RinspaceEditorProjectOptions) []rinspaceEditorSo
 		{join: ` JOIN "access" editor_access ON editor_access.repo_id=repository.id AND editor_access.user_id=? AND editor_access.mode>0`, args: []any{id}, cond: builder.NewCond()},
 		{join: ` JOIN team_repo editor_team_repo ON editor_team_repo.repo_id=repository.id JOIN team_user editor_team_user ON editor_team_user.team_id=editor_team_repo.team_id AND editor_team_user.uid=?`, args: []any{id}, cond: builder.NewCond()},
 		{cond: userOrgPublicRepoCondPrivate(id)},
-		{join: ` JOIN rinspace_repository_owner editor_owner ON editor_owner.repo_id=repository.id AND editor_owner.user_id=?`, args: []any{id},
-			cond: builder.In("repository.id", builder.Select("repo_id").From("rinspace_repository_presentation").Where(builder.In("content_type", RinspaceContentArticle, RinspaceContentBook, RinspaceContentPDF)))},
+		{
+			join: ` JOIN rinspace_repository_owner editor_owner ON editor_owner.repo_id=repository.id AND editor_owner.user_id=?`, args: []any{id},
+			cond: builder.In("repository.id", builder.Select("repo_id").From("rinspace_repository_presentation").Where(builder.In("content_type", RinspaceContentArticle, RinspaceContentBook, RinspaceContentPDF))),
+		},
 	}
 }
 

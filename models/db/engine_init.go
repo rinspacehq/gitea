@@ -29,7 +29,12 @@ func newXORMEngine() (*xorm.Engine, error) {
 		return nil, err
 	}
 
-	engine, err := xorm.NewEngine(driver, connStr)
+	var engine *xorm.Engine
+	if connOpts.Type.IsPostgreSQL() {
+		engine, err = newRinspacePostgresEngine(driver, connStr)
+	} else {
+		engine, err = xorm.NewEngine(driver, connStr)
+	}
 	if err != nil {
 		return nil, err
 	}
