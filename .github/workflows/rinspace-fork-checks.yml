@@ -20,14 +20,15 @@ jobs:
   focused_go_checks:
     name: ${{ matrix.name }}
     if: github.repository == 'rinspacehq/gitea'
-    runs-on: ubuntu-latest
+    # Never send external fork code to the trusted Rinspace runner pool.
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rinspace-gitea-checks' }}
     timeout-minutes: 30
     env:
       GOMAXPROCS: "1"
       GOMEMLIMIT: 2GiB
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         include:
           - name: Rinspace formatting
@@ -51,6 +52,8 @@ jobs:
             command: go test -c -o /dev/null ./models/migrations/v1_27
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/go-setup
       - name: Run ${{ matrix.name }}
         shell: bash
@@ -60,7 +63,7 @@ jobs:
     name: focused-go
     if: ${{ always() && github.repository == 'rinspacehq/gitea' }}
     needs: [focused_go_checks]
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rinspace-gitea-checks' }}
     timeout-minutes: 2
     steps:
       - name: Require every named Go check
@@ -75,10 +78,19 @@ jobs:
 
   dockerfile-check:
     if: github.repository == 'rinspacehq/gitea'
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rinspace-gitea-checks' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - name: Require dedicated Docker engine on self-hosted runners
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          test "${DOCKER_HOST:-}" = unix:///work/buildkit/docker.sock
+          test -S /work/buildkit/docker.sock
+          test ! -e /var/run/docker.sock
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: Validate rootful Dockerfile
         run: docker buildx build --check --platform linux/amd64 .

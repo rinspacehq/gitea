@@ -13,6 +13,7 @@ runs:
   using: composite
   steps:
     - uses: ./.github/actions/free-disk-space
+      if: runner.environment == 'github-hosted'
     - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
         go-version-file: go.mod
