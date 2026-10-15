@@ -18,6 +18,7 @@ type rinspaceCatalogPostgresDialect struct {
 	dialects.Dialect
 }
 
+//revive:disable-next-line:context-as-argument // XORM's Dialect interface fixes this parameter order.
 func (d *rinspaceCatalogPostgresDialect) GetIndexes(queryer core.Queryer, ctx context.Context, table string) (map[string]*schemas.Index, error) {
 	indexes, err := d.Dialect.GetIndexes(queryer, ctx, table)
 	if err != nil {

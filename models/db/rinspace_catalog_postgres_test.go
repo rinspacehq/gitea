@@ -20,6 +20,7 @@ type catalogIndexDialectStub struct {
 	err     error
 }
 
+//revive:disable-next-line:context-as-argument // XORM's Dialect interface fixes this parameter order.
 func (d *catalogIndexDialectStub) GetIndexes(core.Queryer, context.Context, string) (map[string]*schemas.Index, error) {
 	return d.indexes, d.err
 }

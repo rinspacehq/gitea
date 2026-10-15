@@ -4,6 +4,7 @@
 package v1_27
 
 import (
+	"errors"
 	"fmt"
 
 	"gitea.dev/models/db"
@@ -21,7 +22,7 @@ func AddRinspaceEditorCatalogIndexes(x db.EngineMigration) error {
 		return err
 	}
 	if current.Name == "" {
-		return fmt.Errorf("Rinspace catalog requires an explicit PostgreSQL schema")
+		return errors.New("Rinspace catalog requires an explicit PostgreSQL schema")
 	}
 	for _, statement := range rinspacecatalog.Statements(current.Name) {
 		if _, err := x.Exec(statement); err != nil {
