@@ -225,7 +225,7 @@ WHERE n.nspname=current_schema() AND c.relname LIKE 'rinspace_editor_%' AND i.in
 	t.Run("cursor-covers-every-readable-project", func(t *testing.T) {
 		seen := map[int64]bool{}
 		cursor := ""
-		for pageNumber := 0; pageNumber < 5; pageNumber++ {
+		for range 5 {
 			query := "?q=catalog-&limit=1"
 			if cursor != "" {
 				query += "&before_id=" + cursor

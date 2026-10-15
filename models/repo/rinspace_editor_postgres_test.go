@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -76,7 +77,7 @@ func TestRinspaceEditorProjectPostgres(t *testing.T) {
 		require.NoError(t, engine.Close())
 	})
 	for _, scale := range []int{10000, 100000} {
-		t.Run(fmt.Sprint(scale), func(t *testing.T) {
+		t.Run(strconv.Itoa(scale), func(t *testing.T) {
 			fixtureStart := time.Now()
 			_, err := engine.Exec("SET statement_timeout TO '180s'")
 			require.NoError(t, err)
@@ -128,7 +129,7 @@ JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='rinspace_catalog_mo
 			require.NoError(t, err)
 			seen := map[int64]bool{}
 			before := int64(0)
-			for pageNumber := 0; pageNumber < 20; pageNumber++ {
+			for range 20 {
 				page, err := FindRinspaceEditorProjects(t.Context(), RinspaceEditorProjectOptions{Actor: actor, BeforeID: before, Limit: 24})
 				require.NoError(t, err)
 				for _, repository := range page.Repositories {
@@ -160,7 +161,7 @@ JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='rinspace_catalog_mo
 				opts := RinspaceEditorProjectOptions{Actor: actor, Query: query, Limit: 24, BeforeID: item.before}
 				statement, args, err := rinspaceEditorProjectSQL("rinspace_catalog_model_test", opts)
 				require.NoError(t, err)
-				for iteration := 0; iteration < 7; iteration++ {
+				for iteration := range 7 {
 					result, err := engine.SQL("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+statement, args...).Query()
 					require.NoError(t, err)
 					if reportDir := os.Getenv("RINSPACE_CATALOG_REPORT_DIR"); reportDir != "" {
