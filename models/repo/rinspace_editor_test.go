@@ -36,9 +36,13 @@ func TestRinspaceEditorProjectSQLIsBounded(t *testing.T) {
 func TestRinspaceEditorProjectOptions(t *testing.T) {
 	actor := &user_model.User{ID: 2, IsActive: true}
 	for _, opts := range []RinspaceEditorProjectOptions{
-		{Limit: 24}, {Actor: actor, Limit: 0}, {Actor: actor, Limit: 51},
-		{Actor: actor, Limit: 24, BeforeID: -1}, {Actor: actor, Limit: 24, Query: "bad\nquery"},
-		{Actor: actor, Limit: 24, Query: strings.Repeat("a", 201)}, {Actor: actor, Limit: 24, Query: "\xff"},
+		{Limit: 24},
+		{Actor: actor, Limit: 0},
+		{Actor: actor, Limit: 51},
+		{Actor: actor, Limit: 24, BeforeID: -1},
+		{Actor: actor, Limit: 24, Query: "bad\nquery"},
+		{Actor: actor, Limit: 24, Query: strings.Repeat("a", 201)},
+		{Actor: actor, Limit: 24, Query: "\xff"},
 	} {
 		if opts.Validate() == nil {
 			t.Fatalf("invalid options accepted: %+v", opts)

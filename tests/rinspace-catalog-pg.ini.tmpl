@@ -1,0 +1,73 @@
+; Disposable, local-storage PostgreSQL profile for the opt-in catalog suite.
+; Never point TEST_PGSQL_HOST at an application database: integration setup resets it.
+WORK_PATH = {{TEST_WORK_PATH}}
+APP_NAME = Catalog integration test
+RUN_MODE = prod
+
+[database]
+DB_TYPE = postgres
+HOST = {{TEST_PGSQL_HOST}}
+NAME = editor_catalog_api_test
+USER = postgres
+SSL_MODE = disable
+MAX_OPEN_CONNS = 4
+MAX_IDLE_CONNS = 2
+
+[server]
+ROOT_URL = http://localhost:3002/
+LOCAL_ROOT_URL = http://127.0.0.1:3002/
+HTTP_PORT = 3002
+DISABLE_SSH = true
+LFS_START_SERVER = true
+LFS_JWT_SECRET = Tv_MjmZuHqpIY6GFl12ebgkRAMt4RlWt0v4EHKSXO0w
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = catalog-integration-test-only
+; Public upstream integration-fixture token, not an application credential.
+INTERNAL_TOKEN = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYmYiOjE0OTU1NTE2MTh9.hhSVGOANkaKk3vfCd2jDOIww4pUk0xtg9JRde5UogyQ
+DISABLE_QUERY_AUTH_TOKEN = true
+
+[oauth2]
+JWT_SECRET = KZb_QLUd4fYVyxetjxC4eZkrBgWM2SndOOWDNtgUUko
+
+[queue]
+TYPE = immediate
+
+[indexer]
+REPO_INDEXER_ENABLED = false
+ISSUE_INDEXER_TYPE = db
+
+[cron]
+ENABLED = false
+
+[repository.signing]
+SIGNING_KEY = none
+
+[service]
+ENABLE_CAPTCHA = false
+REQUIRE_SIGNIN_VIEW = false
+REGISTER_EMAIL_CONFIRM = false
+NO_REPLY_ADDRESS = noreply.example.test
+
+[session]
+PROVIDER = memory
+
+[storage]
+STORAGE_TYPE = local
+
+[log]
+MODE = {{TEST_LOGGER}}
+logger.xorm.MODE = file
+
+[log.test]
+LEVEL = Info
+
+[log.file]
+LEVEL = Debug
+
+[packages]
+ENABLED = true
+
+[actions]
+ENABLED = false

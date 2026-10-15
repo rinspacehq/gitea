@@ -6,8 +6,9 @@ catalog migration and integration checks pass. It defaults to disabled. Other
 database engines and missing/invalid indexes return an explicit unavailable
 response; there is no unindexed or upstream-page-scanning fallback.
 
-The route requires the existing authenticated `/user` API context and repository
-token scope. The actor comes from that context, never an actor query parameter.
+The route requires the existing authenticated `/user` API context. A personal
+access token needs both `read:user` and `read:repository` scopes (or their write
+equivalents). The actor comes from that context, never an actor query parameter.
 Public-only token restrictions remain enforced. GET never grants collaboration
 rights. The response is not the general repository converter and does not load
 Git objects or source archives.
@@ -37,6 +38,18 @@ function versions must not be edited in-place. Build/rebuild is an operation,
 never an HTTP side effect. Budget the function/index build, WAL, scratch space
 and backup/restore before deployment; a previous application image may reject a
 new database schema version, so retaining that image alone is not a rollback.
+Use PostgreSQL-native backup/restore that preserves the functions and indexes;
+an ORM-only schema export is not a complete catalog backup.
+Fresh PostgreSQL installations initialize these expression indexes before
+recording the current schema version; ordinary model synchronization alone
+cannot create them. Request handlers never create or repair indexes.
+The PostgreSQL engine uses XORM's dialect extension to keep only the six exact
+migration-owned index/table/column layouts out of XORM's model-index metadata.
+XORM 1.3.11 otherwise rejects expression functions as missing entity columns or
+drops these unmodeled indexes during schema synchronization. The real indexes
+stay in PostgreSQL and remain subject to the API's independent readiness check;
+all unrelated index layouts and metadata errors are preserved. No third-party
+module or query/index semantics are changed.
 
 The optional `rinspace_catalog_postgres` Go build tag enables an isolated model
 suite. It **fails** unless `RINSPACE_CATALOG_TEST_DSN` explicitly points to a
@@ -46,5 +59,25 @@ metadata loading at 10,000 and 100,000 synthetic tags. Set
 `RINSPACE_CATALOG_REPORT_DIR` to a dedicated writable report directory to retain
 the EXPLAIN JSON. Run it without production credentials, mounts or network.
 
-These tests do not replace full API scope/team integration, cold-disk tests,
+The same build tag enables `TestAPIRinspaceEditorCatalog` in `tests/integration`.
+It runs the installed router and real token authentication against a disposable
+PostgreSQL database, covering scopes, owner/collaborator/Code-team permissions,
+organization visibility, public-only tokens, hidden/default and global/search
+tags, keyset pagination, input/feature gates, and fail-closed missing indexes.
+The fixture repositories have no Git objects, enforcing metadata-only loading.
+Search checks that no collaboration or access row is created.
+
+Use the `rinspace-catalog-pg` integration profile with `TEST_PGSQL_HOST` pointing
+only at that disposable PostgreSQL instance. Integration setup **drops and
+recreates** `editor_catalog_api_test`; it must never reach an application database.
+The profile uses local storage and does not require external object storage:
+
+```sh
+GITEA_TEST_DATABASE=rinspace-catalog-pg TEST_PGSQL_HOST=/isolated/pgsocket \
+  go test -p 1 -tags rinspace_catalog_postgres ./tests/integration \
+  -run '^TestAPIRinspaceEditorCatalog$'
+```
+
+Run in isolated filesystem/network namespaces with no application credentials or
+runtime mounts. These checks do not replace cold-disk performance tests,
 migration backup/restore rehearsal, or private same-artifact consumption.

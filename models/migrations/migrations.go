@@ -37,6 +37,7 @@ import (
 	"gitea.dev/modules/setting"
 
 	"xorm.io/xorm/names"
+	"xorm.io/xorm/schemas"
 )
 
 const minDBVersion = 70 // Gitea 1.5.3
@@ -514,6 +515,20 @@ func Migrate(ctx context.Context, x db.EngineMigration) error {
 	} else if !has {
 		// If the version record does not exist, it is a fresh installation, and we can skip all migrations.
 		// XORM model framework will create all tables when initializing.
+		if x.Dialect().URI().DBType == schemas.POSTGRES {
+			// Expression indexes are not represented by XORM model tags. Create
+			// the current tables first and install them before recording success.
+			beans, err := db.NamesToBean()
+			if err != nil {
+				return err
+			}
+			if err := x.Sync(beans...); err != nil {
+				return fmt.Errorf("initialize fresh PostgreSQL tables: %w", err)
+			}
+			if err := v1_27.AddRinspaceEditorCatalogIndexes(x); err != nil {
+				return fmt.Errorf("initialize fresh editor catalog indexes: %w", err)
+			}
+		}
 		currentVersion.ID = 0
 		currentVersion.Version = maxDBVer
 		if _, err = x.Insert(currentVersion); err != nil {

@@ -217,9 +217,13 @@ JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='rinspace_catalog_mo
 				publicOnly bool
 				want       int
 			}{
-				{"team-code", false, false, 1}, {"team-issues", false, false, 0},
-				{"org-public", false, false, 1}, {"org-public", true, false, 0},
-				{"team-code", true, false, 1}, {"team-code", false, true, 0}, {"org-public", false, true, 0},
+				{"team-code", false, false, 1},
+				{"team-issues", false, false, 0},
+				{"org-public", false, false, 1},
+				{"org-public", true, false, 0},
+				{"team-code", true, false, 1},
+				{"team-code", false, true, 0},
+				{"org-public", false, true, 0},
 			} {
 				copyActor := *actor
 				copyActor.IsRestricted = item.restricted
