@@ -86,7 +86,6 @@ func TestAPIRinspaceEditorCatalogPerformance(t *testing.T) {
 	file, err := os.OpenFile(filepath.Join(reportDir, "requests.jsonl"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, file.Close()) })
-	encoder := json.NewEncoder(file)
 	previous := setting.API.RinspaceEditorCatalogEnabled
 	setting.API.RinspaceEditorCatalogEnabled = true
 	t.Cleanup(func() {
@@ -107,15 +106,15 @@ func TestAPIRinspaceEditorCatalogPerformance(t *testing.T) {
 			require.NoError(t, err)
 			start := time.Now()
 			for _, statement := range []string{
-				`INSERT INTO repository(id,owner_id,owner_name,lower_name,name,default_branch,is_private,is_archived,is_empty)
+				`INSERT INTO repository (id,owner_id,owner_name,lower_name,name,default_branch,is_private,is_archived,is_empty)
 SELECT 1000000+n,2,'user2','benchproject-'||n,'benchproject-'||n,'main',true,false,false FROM generate_series(1,200) n`,
-				fmt.Sprintf(`INSERT INTO repository(id,owner_id,owner_name,lower_name,name,default_branch,is_private,is_archived,is_empty)
+				fmt.Sprintf(`INSERT INTO repository (id,owner_id,owner_name,lower_name,name,default_branch,is_private,is_archived,is_empty)
 SELECT 1000200+n,600001,'tags',n::text,n::text,'main',n%%97=0,n%%89=0,false FROM generate_series(1,%d) n`, scale),
-				`INSERT INTO repo_unit(repo_id,type,config) SELECT id,1,'{}' FROM repository WHERE id>1000000`,
-				`INSERT INTO rinspace_repository_presentation(repo_id,title,content_type,version)
+				`INSERT INTO repo_unit (repo_id,type,config) SELECT id,1,'{}' FROM repository WHERE id>1000000`,
+				`INSERT INTO rinspace_repository_presentation (repo_id,title,content_type,version)
 SELECT id,CASE WHEN name='25' THEN 'General 数学 quantum' ELSE '数学理论 标签 '||name END,'tag-wiki',1 FROM repository WHERE owner_id=600001 AND name<>'42'`,
-				`INSERT INTO access(repo_id,user_id,mode) SELECT id,2,2 FROM repository WHERE owner_id=600001 AND name<>'25'`,
-				`INSERT INTO collaboration(repo_id,user_id,mode) SELECT id,2,2 FROM repository WHERE owner_id=600001 AND name<>'25'`,
+				`INSERT INTO access (repo_id,user_id,mode) SELECT id,2,2 FROM repository WHERE owner_id=600001 AND name<>'25'`,
+				`INSERT INTO collaboration (repo_id,user_id,mode) SELECT id,2,2 FROM repository WHERE owner_id=600001 AND name<>'25'`,
 			} {
 				_, err := engine.Exec(statement)
 				require.NoError(t, err)
@@ -165,6 +164,7 @@ SELECT id,CASE WHEN name='25' THEN 'General 数学 quantum' ELSE '数学理论 �
 						start := time.Now()
 						response := MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/user/rinspace-editor/projects?"+values.Encode()).AddTokenAuth(token), http.StatusOK)
 						elapsed := time.Since(start)
+						responseSize := response.Body.Len()
 						page := DecodeJSON(t, response, &editorCatalogAPIPage{})
 						require.Equal(t, actor.ID, page.Account.ID)
 						require.Len(t, page.Projects, item.rows)
@@ -185,10 +185,13 @@ SELECT id,CASE WHEN name='25' THEN 'General 数学 quantum' ELSE '数学理论 �
 						if item.rows == 0 {
 							require.False(t, page.HasMore)
 						}
-						require.NoError(t, encoder.Encode(catalogAPIPerformanceSample{
+						data, err := json.Marshal(catalogAPIPerformanceSample{
 							Scale: scale, Case: item.name, State: state, Iteration: iteration, ColdGate: gate,
-							Milliseconds: float64(elapsed) / float64(time.Millisecond), Rows: len(page.Projects), ResponseSize: response.Body.Len(),
-						}))
+							Milliseconds: float64(elapsed) / float64(time.Millisecond), Rows: len(page.Projects), ResponseSize: responseSize,
+						})
+						require.NoError(t, err)
+						_, err = file.Write(append(data, '\n'))
+						require.NoError(t, err)
 					}
 				}
 			}
