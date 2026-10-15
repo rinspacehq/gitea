@@ -7,7 +7,6 @@ package repo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 	"gitea.dev/models/migrations/v1_27"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
+	"gitea.dev/modules/json"
 	"gitea.dev/modules/rinspacecatalog"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/structs"
