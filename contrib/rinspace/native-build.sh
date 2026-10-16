@@ -13,7 +13,7 @@ test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
 test -z "$(git status --porcelain)"
 docker info --format '{{range .SecurityOptions}}{{println .}}{{end}}' | /usr/bin/grep -Fx name=rootless
 test "$(docker info --format '{{.DockerRootDir}}')" = /work/data
-test "$(docker buildx inspect rinspace-native-release --format '{{.Driver}}')" = docker-container
+docker buildx inspect rinspace-native-release | /usr/bin/grep -Ex 'Driver:[[:space:]]+docker-container'
 output="$HOME/native-release/$GITEA_VERSION"
 test ! -e "$output"
 mkdir -p -m 700 "$output"
