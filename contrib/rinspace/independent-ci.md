@@ -52,8 +52,8 @@ The supervisor requires a root-owned, non-writable, SHA-256-pinned launcher,
 which receives only SHA, context and step number. Install the launcher and all
 its dependencies in a root-owned immutable directory outside the candidate.
 It must establish the worker boundary described below, validate the candidate
-SHA/clean tree and select only the fixed plan. **The module alone does not
-provide a namespace launcher or install a worker.** The optional adapters are
+SHA/clean tree and select only the fixed plan. **The supervisor module alone
+does not install a worker.** The optional adapters are
 for offline supervisor tests, never supplied by a PR or production worker.
 
 The shared parent slice must enforce CPU quota 50000/100000, CPU 0, 2500 MiB
@@ -64,6 +64,28 @@ returning any successful receipt. SIGINT/SIGTERM and a scratch reserve below
 1.5 billion bytes cancel the run. That scratch reserve is not a production
 capacity waiver. Abrupt controller loss leaves durable evidence and systemd
 deadlines in force, not a successful check.
+
+`native-worker.mjs` is the separate trusted namespace launcher. Install its
+reviewed executable and its sibling `github-checks.mjs` outside the candidate.
+Its only CLI arguments are the full SHA, context and numeric step. An adjacent
+root-owned, mode-0600 `worker-config.json` selects the already prepared public
+Go and Docker task roots, their unprivileged users/UIDs, and the dedicated
+rootless engine service/state directory. This host configuration is not a
+repository file and must not contain App credentials or production mounts.
+Both roots must be dedicated `public-gitea-*` directories; mount-point parents
+must be root-owned/non-writable, while individual home/cache/scratch directories
+are worker-owned. Symlinked mounts are rejected.
+
+Go workers use a readonly source and SDK/modules, writable task-only cache/tmp,
+all namespaces, no network, a cleared environment and no capabilities. Docker
+workers join only the validated dedicated engine child network, after checking
+its exact service cgroup, distinct host network and the outer namespace's lack
+of a default route. They receive only the rootless socket directory and readonly
+source. Inside both workers the exact clean SHA, UID and zero effective
+capabilities are rechecked; Docker also verifies rootless identity/storage.
+Missing or mismatched engine state refuses to start; there is no host-engine
+fallback. Engine bootstrap/registry egress and canonical candidate preparation
+remain host operations, not commands supplied by a candidate.
 
 The library runs steps serially, stops on failure or incomplete results, and
 revalidates the PR head before completion. A moved/closed PR is cancelled. It
@@ -80,7 +102,7 @@ Offline transport/recipe regression tests (synthetic key/API/worker, **not real
 GitHub CI or Docker checks**):
 
 ```sh
-node --test contrib/rinspace/ci-check.test.mjs contrib/rinspace/github-checks.test.mjs contrib/rinspace/native-run.test.mjs
+node --test contrib/rinspace/ci-check.test.mjs contrib/rinspace/github-checks.test.mjs contrib/rinspace/native-run.test.mjs contrib/rinspace/native-worker.test.mjs
 ```
 
 No installation IDs, source releases or required-check provider IDs are supplied
