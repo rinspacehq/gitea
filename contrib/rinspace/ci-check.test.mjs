@@ -106,6 +106,13 @@ test('native build refuses the default Docker driver before creating output or b
   assert.notEqual(result.status, 0);
   assert.ok(!result.calls.some(call => call.tool === 'mkdir' || call.args[1] === 'build'));
 });
+test('release builder pins its upstream image and uses one copy-on-write worker', () => {
+  const config = readFileSync(new URL('./native-buildkit.toml', import.meta.url), 'utf8');
+  assert.match(config, /docker\.io\/moby\/buildkit@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c/);
+  assert.match(config, /max-parallelism = 1/);
+  assert.match(config, /snapshotter = "overlayfs"/);
+  assert.doesNotMatch(config, /snapshotter = "native"/);
+});
 for (const invalid of [{sha: 'main'}, {version: 'latest'}, {version: '../candidate'}, {dockerHost: 'unix:///var/run/docker.sock'}]) {
   test(`native build rejects mutable input/host socket ${JSON.stringify(invalid)}`, () => {
     const result = nativeProbe(invalid);
