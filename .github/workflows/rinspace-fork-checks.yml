@@ -32,26 +32,17 @@ jobs:
       matrix:
         include:
           - name: Rinspace formatting
-            command: |
-              git diff --check
-              git ls-files -z '*.go' | xargs -0 gofmt -l > /tmp/unformatted-go
-              test ! -s /tmp/unformatted-go || { cat /tmp/unformatted-go; exit 1; }
+            command: bash contrib/rinspace/ci-check.sh formatting
           - name: Rinspace models and control
-            command: go test -p 1 -vet=off ./models/rinauth ./models/rincontrol ./services/rincontrol
+            command: bash contrib/rinspace/ci-check.sh models-control
           - name: Authentication behavior
-            command: go test -p 1 -vet=off ./services/auth
+            command: bash contrib/rinspace/ci-check.sh authentication
           - name: Repository behavior
-            command: go test -p 1 -vet=off ./services/repository -run 'Rinspace|Publication'
+            command: bash contrib/rinspace/ci-check.sh repository
           - name: Editor catalog behavior
-            command: |
-              go test -p 1 ./models/db -run '^TestRinspaceCatalogPostgresIndexMetadata$'
-              go test -p 1 ./modules/rinspacecatalog
-              go test -p 1 -tags sqlite,sqlite_unlock_notify ./models/repo -run '^TestRinspaceEditorProject(SQLIsBounded|Options)$'
-              go test -p 1 -tags sqlite,sqlite_unlock_notify ./routers/api/v1/user -run '^TestRinspaceEditorCatalog'
-              go test -c -p 1 -tags sqlite,sqlite_unlock_notify,rinspace_catalog_postgres -o /tmp/editor-catalog-postgres.test ./models/repo
-              go test -c -p 1 -tags sqlite,sqlite_unlock_notify,rinspace_catalog_postgres -o /tmp/editor-catalog-api.test ./tests/integration
+            command: bash contrib/rinspace/ci-check.sh editor-catalog
           - name: Migration compile
-            command: go test -c -o /dev/null ./models/migrations/v1_27
+            command: bash contrib/rinspace/ci-check.sh migration
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
