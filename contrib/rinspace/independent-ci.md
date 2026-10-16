@@ -7,6 +7,8 @@ protection, publish an image, or claim that a native worker has been installed.
 `ci-check.sh` is the shared entry for the six existing Go checks. The Actions
 matrix and independent plan use the same commands. `github-checks.mjs` is a
 **trusted host-side library**, not a script to execute from a PR checkout.
+The formatting entry also requires these controller/recipe regression tests;
+workers must provide Node.js 22 or newer in addition to the pinned Go toolchain.
 Install its reviewed immutable version outside the worker and keep it fixed
 while candidate commits are tested. Never import controller code from the
 candidate, even for same-repository contributions.
