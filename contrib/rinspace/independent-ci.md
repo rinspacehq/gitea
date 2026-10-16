@@ -38,6 +38,33 @@ Use a durable single-flight ledger before starting a check. A lost POST/PATCH
 response is ambiguous: inspect that same check/external ID before retrying;
 do not create replacement checks because an observer timed out.
 
+`native-run.mjs` supplies this durable wrapper and a systemd supervisor. Use
+`runNativePullCheck` around the trusted reporter, with `systemdExecutor` as its
+executor. The ledger directory must be canonical, controller-owned and mode
+0700. Each SHA/context is reserved exclusively; only an unambiguous terminal
+result releases the global `active` lock. Exceptions, lost API responses and
+uncertain cleanup retain it. Inspect the recorded external/check ID and exact
+unit before explicitly reconciling a retained lock. Never delete it based on a
+PID file, observation timeout or a guessed stale age, and never overwrite its
+original per-SHA evidence to trigger a retry.
+
+The supervisor requires a root-owned, non-writable, SHA-256-pinned launcher,
+which receives only SHA, context and step number. Install the launcher and all
+its dependencies in a root-owned immutable directory outside the candidate.
+It must establish the worker boundary described below, validate the candidate
+SHA/clean tree and select only the fixed plan. **The module alone does not
+provide a namespace launcher or install a worker.** The optional adapters are
+for offline supervisor tests, never supplied by a PR or production worker.
+
+The shared parent slice must enforce CPU quota 50000/100000, CPU 0, 2500 MiB
+and no swap. Each Go/Docker client receives a 30/10 minute systemd deadline,
+respectively. After observing a terminal result, the supervisor explicitly
+stops the entire unit and requires its cgroup to be empty or removed before
+returning any successful receipt. SIGINT/SIGTERM and a scratch reserve below
+1.5 billion bytes cancel the run. That scratch reserve is not a production
+capacity waiver. Abrupt controller loss leaves durable evidence and systemd
+deadlines in force, not a successful check.
+
 The library runs steps serially, stops on failure or incomplete results, and
 revalidates the PR head before completion. A moved/closed PR is cancelled. It
 refuses to overwrite another App, SHA, context, ID or terminal check. Only all
@@ -53,7 +80,7 @@ Offline transport/recipe regression tests (synthetic key/API/worker, **not real
 GitHub CI or Docker checks**):
 
 ```sh
-node --test contrib/rinspace/ci-check.test.mjs contrib/rinspace/github-checks.test.mjs
+node --test contrib/rinspace/ci-check.test.mjs contrib/rinspace/github-checks.test.mjs contrib/rinspace/native-run.test.mjs
 ```
 
 No installation IDs, source releases or required-check provider IDs are supplied

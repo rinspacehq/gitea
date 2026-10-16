@@ -108,16 +108,20 @@ export class GithubChecks {
     return pull.state === 'open' && pull.head?.sha === sha && pull.head.repo?.full_name === repository && pull.base?.repo?.full_name === repository && pull.base.ref === 'rinspace-1.27';
   }
 
-  async runPullCheck({pullNumber, sha, name, execute}) {
+  async runPullCheck({pullNumber, sha, name, execute, record = async () => {}}) {
     positiveId(pullNumber);
     assert.match(sha, /^[0-9a-f]{40}$/);
     assert.equal(typeof execute, 'function', 'An isolated executor is required');
+    assert.equal(typeof record, 'function', 'A trusted ledger callback is required');
     const plan = checkPlan(name);
     let token = await this.#authorize();
     assert.ok(await this.#currentPull(pullNumber, sha, token), 'PR source is not the reviewed canonical head');
-    const created = await this.#request('POST', `${basePath}/check-runs`, token, {name, head_sha: sha, status: 'in_progress', external_id: `rinspace-native-ci/${randomUUID()}`, started_at: new Date(this.#now()).toISOString()});
+    const externalId = `rinspace-native-ci/${randomUUID()}`;
+    await record({stage: 'check-creating', externalId, sha, name});
+    const created = await this.#request('POST', `${basePath}/check-runs`, token, {name, head_sha: sha, status: 'in_progress', external_id: externalId, started_at: new Date(this.#now()).toISOString()});
     positiveId(created.id);
     assert.ok(created.app?.id === this.#config.appId && created.head_sha === sha && created.name === name && created.status === 'in_progress', 'Created check identity mismatch');
+    await record({stage: 'check-created', externalId, checkId: created.id});
 
     let conclusion = 'success';
     let completed = 0;
@@ -140,8 +144,10 @@ export class GithubChecks {
     if (!await this.#currentPull(pullNumber, sha, token)) conclusion = 'cancelled';
     const current = await this.#request('GET', `${basePath}/check-runs/${created.id}`, token);
     assert.ok(current.id === created.id && current.app?.id === this.#config.appId && current.head_sha === sha && current.name === name && current.status === 'in_progress', 'Refusing to overwrite an unrelated or terminal check');
+    await record({stage: 'check-completing', checkId: created.id, conclusion});
     const finished = await this.#request('PATCH', `${basePath}/check-runs/${created.id}`, token, {status: 'completed', conclusion, completed_at: new Date(this.#now()).toISOString(), output: {title: `${name}: ${conclusion}`, summary: `${completed}/${plan.length} isolated steps completed for ${sha}. Source was revalidated before completion.`}});
     assert.ok(finished.id === created.id && finished.app?.id === this.#config.appId && finished.head_sha === sha && finished.name === name && finished.status === 'completed' && finished.conclusion === conclusion, 'Completed check identity mismatch');
+    await record({stage: 'check-completed', checkId: created.id, conclusion});
     return Object.freeze({id: created.id, sha, name, conclusion, completed, total: plan.length});
   }
 }
