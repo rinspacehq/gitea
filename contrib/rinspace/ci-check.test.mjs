@@ -49,7 +49,7 @@ for (const [mode, expected] of Object.entries(commands)) {
 test('formatting retains whitespace and all tracked Go file checks', () => {
   const result = probe('formatting');
   assert.equal(result.status, 0);
-  assert.deepEqual(result.calls.map(call => [call.tool, ...call.args]), [['git', 'diff', '--check'], ['git', 'ls-files', '-z', '*.go'], ['gofmt', '-l'], ['node', '--test', 'contrib/rinspace/ci-check.test.mjs', 'contrib/rinspace/github-checks.test.mjs', 'contrib/rinspace/native-run.test.mjs', 'contrib/rinspace/native-worker.test.mjs']]);
+  assert.deepEqual(result.calls.map(call => [call.tool, ...call.args]), [['git', 'diff', '--check'], ['git', 'ls-files', '-z', '*.go'], ['gofmt', '-l'], ['node', '--test', 'contrib/rinspace/ci-check.test.mjs', 'contrib/rinspace/github-checks.test.mjs', 'contrib/rinspace/native-run.test.mjs', 'contrib/rinspace/native-worker.test.mjs', 'contrib/rinspace/native-receipt.test.mjs']]);
 });
 test('reporter regression failures fail the shared formatting gate', () => {
   assert.equal(probe('formatting', 23, 'node').status, 23);
@@ -73,3 +73,37 @@ test('Actions uses the same six entry points and retains required check names', 
   assert.match(workflow, /docker buildx build --check --platform linux\/amd64 \./);
   assert.match(workflow, /docker buildx build --check --platform linux\/amd64 --file Dockerfile.rootless \./);
 });
+
+function nativeProbe({version = `v1.27.2-rinspace.999999-rc.${process.pid}`, sha = 'a'.repeat(40), dockerHost = 'unix:///work/buildkit/docker.sock', failure = 0} = {}) {
+  const directory = mkdtempSync(join(tmpdir(), 'rinspace-native-build-unit-'));
+  const log = join(directory, 'commands.jsonl');
+  const stub = `#!${process.execPath}\nconst fs=require('node:fs'),tool=require('node:path').basename(process.argv[1]),args=process.argv.slice(2);fs.appendFileSync(process.env.CI_PROBE_LOG,JSON.stringify({tool,args})+'\\n');if(tool==='git'&&args[0]==='rev-parse')console.log(process.env.SOURCE_COMMIT);if(tool==='docker'&&args[0]==='info')console.log(args[2].includes('SecurityOptions')?'name=rootless':'/work/data');if(tool==='docker'&&args[0]==='buildx'&&args[1]==='inspect')console.log('docker-container');if(tool==='docker'&&args[0]==='buildx'&&args[1]==='build')process.exit(Number(process.env.CI_PROBE_FAILURE));\n`;
+  for (const name of ['git', 'docker', 'mkdir']) writeFileSync(join(directory, name), stub, {mode: 0o700});
+  writeFileSync(log, '');
+  try {
+    const result = spawnSync('/bin/bash', [new URL('./native-build.sh', import.meta.url).pathname], {encoding: 'utf8', timeout: 10000, env: {PATH: `${directory}:/usr/bin:/bin`, HOME: '/home/worker', SOURCE_COMMIT: sha, GITEA_VERSION: version, DOCKER_HOST: dockerHost, CI_PROBE_LOG: log, CI_PROBE_FAILURE: String(failure)}});
+    assert.ifError(result.error);
+    return {status: result.status, calls: readFileSync(log, 'utf8').split('\n').filter(Boolean).map(JSON.parse)};
+  } finally {rmSync(directory, {recursive: true, force: true});}
+}
+
+test('native build recipe exports OCI without push/signing credentials and revalidates source', () => {
+  const result = nativeProbe();
+  assert.equal(result.status, 0);
+  const call = result.calls.find(call => call.tool === 'docker' && call.args[0] === 'buildx' && call.args[1] === 'build');
+  assert.ok(call && !call.args.includes('--push') && !call.args.some(arg => /TOKEN|PRIVATE_KEY|password/.test(arg)));
+  assert.ok(call.args.includes('--provenance') && call.args.includes('mode=max') && call.args.includes('--sbom'));
+  assert.ok(call.args.some(arg => arg.startsWith('type=oci,dest=/home/worker/native-release/')));
+  assert.equal(result.calls.filter(call => call.tool === 'git' && call.args[0] === 'rev-parse').length, 2);
+});
+test('native build failure propagates without post-build success', () => {
+  const result = nativeProbe({failure: 23});
+  assert.equal(result.status, 23);
+  assert.equal(result.calls.filter(call => call.tool === 'git' && call.args[0] === 'rev-parse').length, 1);
+});
+for (const invalid of [{sha: 'main'}, {version: 'latest'}, {version: '../candidate'}, {dockerHost: 'unix:///var/run/docker.sock'}]) {
+  test(`native build rejects mutable input/host socket ${JSON.stringify(invalid)}`, () => {
+    const result = nativeProbe(invalid);
+    assert.notEqual(result.status, 0); assert.deepEqual(result.calls, []);
+  });
+}

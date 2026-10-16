@@ -77,3 +77,16 @@ test('unscoped roots, root users and arbitrary engine arguments are rejected', (
     assert.throws(() => workerPlan({...config, docker}, request('dockerfile-check')));
   }
 });
+
+test('native release has one fixed public recipe and host-approved source/version only', () => {
+  const release = {sourceCommit: sha, version: 'v1.27.2-rinspace.2-rc.1'};
+  const plan = workerPlan({...config, release}, request('native-release'));
+  assert.deepEqual(plan.args.slice(-2), ['bash', 'contrib/rinspace/native-build.sh']);
+  assert.deepEqual(plan.mounts, ['source', 'home', 'buildkit'].map(path => `${config.docker.root}/${path}`));
+  assert.ok(plan.args.includes('SOURCE_COMMIT') && plan.args.includes(sha));
+  assert.ok(plan.args.includes('GITEA_VERSION') && plan.args.includes(release.version));
+  assert.ok(!JSON.stringify(plan).includes('PRIVATE_KEY'));
+  assert.throws(() => workerPlan(config, request('native-release')));
+  assert.throws(() => workerPlan({...config, release: {...release, sourceCommit: 'b'.repeat(40)}}, request('native-release')));
+  assert.throws(() => workerPlan({...config, release: {...release, version: 'latest'}}, request('native-release')));
+});

@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {checkPlan} from './github-checks.mjs';
-import {runNativePullCheck, systemdExecutor} from './native-run.mjs';
+import {runNativePullCheck, runNativeMaintenanceCheck, systemdExecutor} from './native-run.mjs';
 
 const sha = 'a'.repeat(40);
 const name = 'focused-go';
@@ -39,6 +39,20 @@ test('durable reservation precedes reporting and terminal success releases globa
   assert.equal(state.status, 'completed');
   assert.ok(state.events.some(event => event.externalId === 'synthetic-id'));
   assert.equal(existsSync(join(directory, 'active')), false);
+});
+
+test('maintenance transport preserves durable supervision without inventing a pull number', async t => {
+  const directory = temporary(t);
+  await runNativeMaintenanceCheck({directory, sha, name, execute: passed,
+    reporter: {runMaintenanceCheck: async request => {
+      assert.equal(Object.hasOwn(request, 'pullNumber'), false);
+      assert.ok(existsSync(join(directory, 'active')));
+      await request.execute({sha, name, step: 0, argv: checkPlan(name)[0]});
+      return {sha, name, conclusion: 'success'};
+    }}});
+  assert.equal(JSON.parse(readFileSync(join(directory, `${sha}-${name}.json`))).status, 'completed');
+  assert.equal(existsSync(join(directory, 'active')), false);
+  await assert.rejects(runNativeMaintenanceCheck({directory, sha, name, pullNumber: 7}), /impersonate/);
 });
 
 test('duplicate SHA/context refuses to replace its original evidence', async t => {

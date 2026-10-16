@@ -18,6 +18,11 @@
 - Release only from an immutable reviewed commit through the Rinspace release
   workflow. Consumers must pin the resulting OCI digest, never a branch or
   mutable tag.
+- If Actions dispatch is unavailable, the reviewed native release workflow may
+  use `contrib/rinspace/native-build.sh` through the fixed namespace launcher.
+  Require the merged maintenance-line source, same-SHA App checks and signed
+  native evidence; never invent Actions/OIDC identities. Signing/publishing
+  credentials remain outside workers and private consumers pin the authority.
 - Do not enable the upstream Gitea release, nightly, Snapcraft, bot, or
   translation workflows for this fork.
 - Use `make help` to find available development targets

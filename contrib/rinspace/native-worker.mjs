@@ -50,6 +50,12 @@ export function workerPlan(config, {sha, name, step}) {
     environment = {PATH: '/usr/sbin:/usr/bin:/sbin:/bin', HOME: '/home/worker', LANG: 'C.UTF-8',
       DOCKER_HOST: 'unix:///work/buildkit/docker.sock', BUILDKIT_PROGRESS: 'plain',
       HTTP_PROXY: 'http://127.0.0.1:8888', HTTPS_PROXY: 'http://127.0.0.1:8888', NO_PROXY: 'localhost,127.0.0.1'};
+    if (name === 'native-release') {
+      assert.equal(config.release?.sourceCommit, sha, 'Native release source is not approved by the host');
+      assert.match(config.release.version, /^v1\.27\.2-rinspace\.[1-9][0-9]*-rc\.[1-9][0-9]*$/);
+      environment.SOURCE_COMMIT = sha;
+      environment.GITEA_VERSION = config.release.version;
+    }
     inside = `${verifySource}test -S /work/buildkit/docker.sock; docker info --format '{{range .SecurityOptions}}{{println .}}{{end}}' | /usr/bin/grep -Fx name=rootless; test "$(docker info --format '{{.DockerRootDir}}')" = /work/data; exec "$@"`;
   }
   args.push('--clearenv');
@@ -83,7 +89,7 @@ export function launch(configPath, request) {
     }
   }
   let {file, args} = plan;
-  if (request.name === 'dockerfile-check') {
+  if (['dockerfile-check', 'native-release'].includes(request.name)) {
     const service = plan.worker.engineService;
     const property = key => hostCommand('/usr/bin/systemctl', ['show', service, '-p', key, '--value']);
     assert.equal(property('ActiveState'), 'active', 'Dedicated rootless engine is unavailable');

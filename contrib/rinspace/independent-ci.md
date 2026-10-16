@@ -109,3 +109,50 @@ No installation IDs, source releases or required-check provider IDs are supplied
 here. Bind required checks to the real dedicated App only after real candidate
 checks succeed. Release provenance and private immutable consumption remain
 separate gates; this library cannot fabricate an Actions run or OIDC provenance.
+
+## Native release workflow
+
+When Actions dispatch is unavailable, `native-build.sh` is the public build
+recipe for the same Dockerfile, labels, native amd64 platform and actual
+BuildKit SBOM/provenance output. The fixed launcher accepts `native-release`
+only when its private host configuration approves that full source commit and
+an immutable RC version. Its 3-hour supervisor deadline does not change the
+30/10-minute check deadlines or aggregate resource limits. The ordinary PR
+reporter refuses this context: a release needs a separate trusted publisher.
+
+The publisher must verify the source is merged into the maintenance line and
+both same-SHA required App checks succeeded before and after the build. It
+must reserve durable identities, supervise and clean up the complete worker,
+derive exact OCI index/platform/config and statement digests, verify the source
+labels, and only then sign a receipt and publish a real native release check.
+The output is OCI, not a pushed mutable tag. Never pass a registry token or
+signing key to `native-build.sh`. Its network=host option refers only to the
+validated dedicated engine-child namespace, not the machine network.
+The operator must provision the `rinspace-native-release` docker-container
+builder inside that same dedicated engine with a reviewed immutable BuildKit
+image and serialized build configuration. `native-buildkit.toml` pins the
+reviewed upstream v0.34.0 image and limits OCI execution to one vertex at a
+time with a native snapshotter. The recipe refuses the default
+docker driver, which cannot preserve the required OCI/attestation output.
+
+`native-receipt.mjs` defines a strict signed native statement and DSSE PAE
+domain separation. Consumers must pin the RSA public-key SHA-256 and App
+identity in independent reviewed policy, not trust values supplied by a new
+receipt or lock. Receipts bind source/tree, image digests, recipe/controller,
+logs, timestamps, both successful check identities and statement digests.
+They contain no fake workflowRunId/jobId or OIDC claim. Signing a statement
+is not by itself evidence a build ran: the publisher must obtain each field
+from supervised execution and revalidated GitHub/registry facts. Preserve the
+raw logs/BuildKit output and publish the signed receipt as a release asset.
+Both RC and accepted tags must resolve to the exact same immutable OCI index.
+
+A linear-history rebase merge creates a new maintenance commit identity. Use
+`runMaintenanceCheck`, wrapped by `runNativeMaintenanceCheck`, to actually
+rerun the original matrices at that exact
+protected maintenance head; it verifies the real branch before and after all
+steps. Never copy a PR check result onto the new SHA or forge an open PR. A
+moved/unprotected head refuses or cancels the check. This endpoint still cannot
+run the native publisher: release supervision and signing remain separate.
+
+Offline crypto and recipe tests use synthetic keys/tools only. They do not
+constitute a native release, a namespace proof or production acceptance.

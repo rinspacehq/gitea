@@ -14,6 +14,7 @@ const plans = Object.freeze({
     ['docker', 'buildx', 'build', '--check', '--platform', 'linux/amd64', '.'],
     ['docker', 'buildx', 'build', '--check', '--platform', 'linux/amd64', '--file', 'Dockerfile.rootless', '.'],
   ],
+  'native-release': [['bash', 'contrib/rinspace/native-build.sh']],
 });
 for (const plan of Object.values(plans)) {
   plan.forEach(Object.freeze);
@@ -108,14 +109,26 @@ export class GithubChecks {
     return pull.state === 'open' && pull.head?.sha === sha && pull.head.repo?.full_name === repository && pull.base?.repo?.full_name === repository && pull.base.ref === 'rinspace-1.27';
   }
 
-  async runPullCheck({pullNumber, sha, name, execute, record = async () => {}}) {
-    positiveId(pullNumber);
+  async runPullCheck(options) {
+    positiveId(options.pullNumber);
+    return this.#runCheck({...options, currentSource: token => this.#currentPull(options.pullNumber, options.sha, token)});
+  }
+
+  async runMaintenanceCheck(options) {
+    return this.#runCheck({...options, currentSource: async token => {
+      const branch = await this.#request('GET', `${basePath}/branches/rinspace-1.27`, token);
+      return branch.name === 'rinspace-1.27' && branch.protected === true && branch.commit?.sha === options.sha;
+    }});
+  }
+
+  async #runCheck({sha, name, execute, record = async () => {}, currentSource}) {
+    assert.ok(['focused-go', 'dockerfile-check'].includes(name), 'Unknown PR check; native releases require the separate publisher');
     assert.match(sha, /^[0-9a-f]{40}$/);
     assert.equal(typeof execute, 'function', 'An isolated executor is required');
     assert.equal(typeof record, 'function', 'A trusted ledger callback is required');
     const plan = checkPlan(name);
     let token = await this.#authorize();
-    assert.ok(await this.#currentPull(pullNumber, sha, token), 'PR source is not the reviewed canonical head');
+    assert.ok(await currentSource(token), 'Source is not the reviewed canonical head');
     const externalId = `rinspace-native-ci/${randomUUID()}`;
     await record({stage: 'check-creating', externalId, sha, name});
     const created = await this.#request('POST', `${basePath}/check-runs`, token, {name, head_sha: sha, status: 'in_progress', external_id: externalId, started_at: new Date(this.#now()).toISOString()});
@@ -141,7 +154,7 @@ export class GithubChecks {
       completed++;
     }
     token = await this.#authorize();
-    if (!await this.#currentPull(pullNumber, sha, token)) conclusion = 'cancelled';
+    if (!await currentSource(token)) conclusion = 'cancelled';
     const current = await this.#request('GET', `${basePath}/check-runs/${created.id}`, token);
     assert.ok(current.id === created.id && current.app?.id === this.#config.appId && current.head_sha === sha && current.name === name && current.status === 'in_progress', 'Refusing to overwrite an unrelated or terminal check');
     await record({stage: 'check-completing', checkId: created.id, conclusion});
