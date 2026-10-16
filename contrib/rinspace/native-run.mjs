@@ -37,10 +37,19 @@ function syncDirectory(directory) {
   try {fsyncSync(fd);} finally {closeSync(fd);}
 }
 
-export async function runNativePullCheck({directory, reporter, pullNumber, sha, name, execute}) {
+export async function runNativePullCheck(options) {
+  assert.ok(Number.isSafeInteger(options.pullNumber) && options.pullNumber > 0);
+  return runNativeCheck(options, 'runPullCheck');
+}
+
+export async function runNativeMaintenanceCheck(options) {
+  assert.equal(options.pullNumber, undefined, 'Maintenance checks do not impersonate a PR');
+  return runNativeCheck(options, 'runMaintenanceCheck');
+}
+
+async function runNativeCheck({directory, reporter, pullNumber, sha, name, execute}, method) {
   trustedDirectory(directory);
   assert.match(sha, /^[0-9a-f]{40}$/);
-  assert.ok(Number.isSafeInteger(pullNumber) && pullNumber > 0);
   checkPlan(name);
   assert.equal(typeof execute, 'function');
   const lock = join(directory, 'active');
@@ -65,7 +74,7 @@ export async function runNativePullCheck({directory, reporter, pullNumber, sha, 
   let result;
   let uncertain = false;
   try {
-    result = await reporter.runPullCheck({pullNumber, sha, name, record, execute: async step => {
+    result = await reporter[method]({...(pullNumber === undefined ? {} : {pullNumber}), sha, name, record, execute: async step => {
       try {
         await record({stage: 'step-starting', step: step.step});
         const receipt = await execute(step, {directory, runId: state.runId, record}, abort.signal);
@@ -118,7 +127,7 @@ export function systemdExecutor({launcher, launcherSha256, slice}, adapters = {}
     const logPath = join(directory, `${runId}-${step.step}.log`);
     const fd = openSync(logPath, 'wx', 0o600);
     closeSync(fd);
-    const deadline = step.name === 'focused-go' ? 1800 : 600;
+    const deadline = step.name === 'native-release' ? 10800 : step.name === 'focused-go' ? 1800 : 600;
     const started = Date.now();
     let cancelled = signal?.aborted === true;
     let timedOut = false;

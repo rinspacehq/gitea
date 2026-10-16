@@ -17,7 +17,7 @@ const goodResult = () => ({exitCode: 0, signal: null, timedOut: false, cancelled
 
 function fixture(overrides = {}) {
   const calls = [];
-  const state = {pullReads: 0, check: null, tokenCount: 0};
+  const state = {pullReads: 0, branchReads: 0, check: null, tokenCount: 0};
   const fetch = async (url, options) => {
     assert.ok(url.startsWith('https://api.github.com/'));
     assert.equal(options.redirect, 'error');
@@ -34,7 +34,11 @@ function fixture(overrides = {}) {
       assert.deepEqual(body, {repositories: ['gitea'], permissions});
       value = {token: 'synthetic-installation-token', permissions, expires_at: new Date(now + 3600000).toISOString(), ...overrides.token};
     } else if (path === '/installation/repositories') value = {total_count: 1, repositories: [{full_name: 'rinspacehq/gitea'}], ...overrides.repositories};
-    else if (path === '/repos/rinspacehq/gitea/pulls/7') {
+    else if (path === '/repos/rinspacehq/gitea/branches/rinspace-1.27') {
+      state.branchReads++;
+      value = {name: 'rinspace-1.27', protected: true, commit: {sha}, ...overrides.branch};
+      if (overrides.maintenanceMoved && state.branchReads > 1) value.commit.sha = 'b'.repeat(40);
+    } else if (path === '/repos/rinspacehq/gitea/pulls/7') {
       state.pullReads++;
       value = {state: 'open', head: {sha, repo: {full_name: 'rinspacehq/gitea'}}, base: {ref: 'rinspace-1.27', repo: {full_name: 'rinspacehq/gitea'}}, ...overrides.pull};
       if (overrides.moved && state.pullReads > 1) value.head.sha = 'b'.repeat(40);
@@ -90,6 +94,33 @@ test('Docker requires both exact BuildKit check commands', async () => {
     ['docker', 'buildx', 'build', '--check', '--platform', 'linux/amd64', '.'],
     ['docker', 'buildx', 'build', '--check', '--platform', 'linux/amd64', '--file', 'Dockerfile.rootless', '.'],
   ]);
+});
+
+test('maintenance checks run the exact newly rebased SHA, not inherited PR results', async () => {
+  const {client, state} = fixture();
+  let executed = 0;
+  const result = await client.runMaintenanceCheck({sha, name: 'focused-go', execute: async step => {
+    assert.equal(step.sha, sha); executed++; return goodResult();
+  }});
+  assert.equal(result.conclusion, 'success'); assert.equal(executed, 6);
+  assert.equal(state.branchReads, 2); assert.equal(state.pullReads, 0);
+});
+for (const branch of [{protected: false}, {name: 'main'}, {commit: {sha: 'b'.repeat(40)}}]) {
+  test(`maintenance checks refuse unprotected or unrelated source ${JSON.stringify(branch)}`, async () => {
+    const {client, state} = fixture({branch});
+    await assert.rejects(client.runMaintenanceCheck({sha, name: 'focused-go', execute: async () => assert.fail('must not execute')}));
+    assert.equal(state.check, null);
+  });
+}
+test('maintenance head movement cancels a completed matrix', async () => {
+  const {client} = fixture({maintenanceMoved: true});
+  assert.equal((await client.runMaintenanceCheck({sha, name: 'dockerfile-check', execute: async () => goodResult()})).conclusion, 'cancelled');
+});
+test('neither PR nor maintenance check endpoints can substitute the native publisher', async () => {
+  const {client, state} = fixture();
+  await assert.rejects(client.runPullCheck({...request(async () => goodResult()), name: 'native-release'}));
+  await assert.rejects(client.runMaintenanceCheck({sha, name: 'native-release', execute: async () => goodResult()}));
+  assert.equal(state.check, null); assert.equal(state.tokenCount, 0);
 });
 
 for (const [name, result, expected] of [

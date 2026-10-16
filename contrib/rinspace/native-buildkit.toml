@@ -1,0 +1,7 @@
+# Copyright 2026 The Gitea Authors. All rights reserved.
+# SPDX-License-Identifier: MIT
+# Operator image: docker.io/moby/buildkit@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
+# Reviewed upstream v0.34.0, source f5b59a1f2fb25a0cb7072c398cab9aed7835da4e.
+[worker.oci]
+  max-parallelism = 1
+  snapshotter = "native"
