@@ -49,7 +49,7 @@ for (const [mode, expected] of Object.entries(commands)) {
 test('formatting retains whitespace and all tracked Go file checks', () => {
   const result = probe('formatting');
   assert.equal(result.status, 0);
-  assert.deepEqual(result.calls.map(call => [call.tool, ...call.args]), [['git', 'diff', '--check'], ['git', 'ls-files', '-z', '*.go'], ['gofmt', '-l'], ['node', '--test', 'contrib/rinspace/ci-check.test.mjs', 'contrib/rinspace/github-checks.test.mjs']]);
+  assert.deepEqual(result.calls.map(call => [call.tool, ...call.args]), [['git', 'diff', '--check'], ['git', 'ls-files', '-z', '*.go'], ['gofmt', '-l'], ['node', '--test', 'contrib/rinspace/ci-check.test.mjs', 'contrib/rinspace/github-checks.test.mjs', 'contrib/rinspace/native-run.test.mjs']]);
 });
 test('reporter regression failures fail the shared formatting gate', () => {
   assert.equal(probe('formatting', 23, 'node').status, 23);

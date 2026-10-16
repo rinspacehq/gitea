@@ -216,3 +216,28 @@ test('unexpected create response is rejected before executing candidate code', a
   assert.equal(invoked, false);
   assert.deepEqual(updates(calls), []);
 });
+
+test('durable events bracket API mutations with the exact external ID and check ID', async () => {
+  const {client, calls} = fixture();
+  const events = [];
+  await client.runPullCheck({...request(async () => goodResult()), record: async event => {
+    if (event.stage === 'check-creating') assert.ok(!calls.some(call => call.method === 'POST' && call.path.endsWith('/check-runs')));
+    if (event.stage === 'check-completing') assert.equal(updates(calls).length, 0);
+    events.push(event);
+  }});
+  assert.deepEqual(events.map(event => event.stage), ['check-creating', 'check-created', 'check-completing', 'check-completed']);
+  assert.equal(events[0].externalId, calls.find(call => call.path.endsWith('/check-runs')).body.external_id);
+  assert.ok(events.slice(1).every(event => event.checkId === 789));
+  assert.ok(!JSON.stringify(events).includes('synthetic-installation-token'));
+});
+
+for (const stage of ['check-creating', 'check-completing']) {
+  test(`durable write failure at ${stage} prevents its API mutation`, async () => {
+    const {client, calls} = fixture();
+    await assert.rejects(client.runPullCheck({...request(async () => goodResult()), record: async event => {
+      if (event.stage === stage) throw Error('synthetic disk write failure');
+    }}), /disk write failure/);
+    assert.equal(updates(calls).length, 0);
+    if (stage === 'check-creating') assert.ok(!calls.some(call => call.path.endsWith('/check-runs')));
+  });
+}
