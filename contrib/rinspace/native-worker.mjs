@@ -14,7 +14,7 @@ const boundary = ['--die-with-parent', '--new-session', '--ro-bind', '/usr', '/u
   '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
   '--ro-bind', '/etc/passwd', '/etc/passwd', '--ro-bind', '/etc/group', '/etc/group',
   '--ro-bind', '/etc/nsswitch.conf', '/etc/nsswitch.conf', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/run'];
-const verifySource = 'expected=$1; expected_uid=$2; shift 2; test "$(id -u)" = "$expected_uid"; test "$(git rev-parse HEAD)" = "$expected"; test -z "$(git status --porcelain)"; test ! -e /var/run/docker.sock; awk \'$1=="CapEff:" {if($2!="0000000000000000")exit 1; found=1} END {if(!found)exit 1}\' /proc/self/status; ';
+const verifySource = 'expected=$1; expected_uid=$2; shift 2; test "$(id -u)" = "$expected_uid"; test "$(git rev-parse HEAD)" = "$expected"; test -z "$(git status --porcelain)"; test ! -e /var/run/docker.sock; capabilities=$(while read -r key value remainder; do if [[ "$key" == CapEff: ]]; then printf "%s" "$value"; fi; done </proc/self/status); test "$capabilities" = 0000000000000000; ';
 
 export function workerPlan(config, {sha, name, step}) {
   assert.match(sha, /^[0-9a-f]{40}$/);
