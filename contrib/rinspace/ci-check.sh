@@ -12,6 +12,7 @@ case "${1:-}" in
     trap 'rm -f "$format_report"' EXIT
     git ls-files -z '*.go' | xargs -0 gofmt -l > "$format_report"
     test ! -s "$format_report" || { cat "$format_report"; exit 1; }
+    node --test contrib/rinspace/ci-check.test.mjs contrib/rinspace/github-checks.test.mjs
     ;;
   models-control)
     go test -p 1 -vet=off ./models/rinauth ./models/rincontrol ./services/rincontrol

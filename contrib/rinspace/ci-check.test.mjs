@@ -23,14 +23,14 @@ const commands = {
   migration: ['test -c -o /dev/null ./models/migrations/v1_27'],
 };
 
-function probe(mode, failure = 0) {
+function probe(mode, failure = 0, failureTool = 'go') {
   const directory = mkdtempSync(join(tmpdir(), 'rinspace-ci-contract-'));
   const log = join(directory, 'commands.jsonl');
-  const stub = `#!${process.execPath}\nconst fs=require('node:fs');fs.appendFileSync(process.env.CI_PROBE_LOG,JSON.stringify({tool:require('node:path').basename(process.argv[1]),args:process.argv.slice(2),gomaxprocs:process.env.GOMAXPROCS,gomemlimit:process.env.GOMEMLIMIT})+'\\n');if(process.argv[1].endsWith('/go'))process.exit(Number(process.env.CI_PROBE_FAILURE));\n`;
-  for (const name of ['go', 'git', 'gofmt']) writeFileSync(join(directory, name), stub, {mode: 0o700});
+  const stub = `#!${process.execPath}\nconst fs=require('node:fs'),tool=require('node:path').basename(process.argv[1]);fs.appendFileSync(process.env.CI_PROBE_LOG,JSON.stringify({tool,args:process.argv.slice(2),gomaxprocs:process.env.GOMAXPROCS,gomemlimit:process.env.GOMEMLIMIT})+'\\n');if(tool===process.env.CI_PROBE_TOOL)process.exit(Number(process.env.CI_PROBE_FAILURE));\n`;
+  for (const name of ['go', 'git', 'gofmt', 'node']) writeFileSync(join(directory, name), stub, {mode: 0o700});
   writeFileSync(log, '');
   try {
-    const result = spawnSync('/bin/bash', [script, mode], {encoding: 'utf8', timeout: 10000, env: {PATH: `${directory}:/usr/bin:/bin`, TMPDIR: directory, CI_PROBE_LOG: log, CI_PROBE_FAILURE: String(failure)}});
+    const result = spawnSync('/bin/bash', [script, mode], {encoding: 'utf8', timeout: 10000, env: {PATH: `${directory}:/usr/bin:/bin`, TMPDIR: directory, CI_PROBE_LOG: log, CI_PROBE_FAILURE: String(failure), CI_PROBE_TOOL: failureTool}});
     assert.ifError(result.error);
     return {status: result.status, calls: readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)};
   } finally {
@@ -49,7 +49,10 @@ for (const [mode, expected] of Object.entries(commands)) {
 test('formatting retains whitespace and all tracked Go file checks', () => {
   const result = probe('formatting');
   assert.equal(result.status, 0);
-  assert.deepEqual(result.calls.map(call => [call.tool, ...call.args]), [['git', 'diff', '--check'], ['git', 'ls-files', '-z', '*.go'], ['gofmt', '-l']]);
+  assert.deepEqual(result.calls.map(call => [call.tool, ...call.args]), [['git', 'diff', '--check'], ['git', 'ls-files', '-z', '*.go'], ['gofmt', '-l'], ['node', '--test', 'contrib/rinspace/ci-check.test.mjs', 'contrib/rinspace/github-checks.test.mjs']]);
+});
+test('reporter regression failures fail the shared formatting gate', () => {
+  assert.equal(probe('formatting', 23, 'node').status, 23);
 });
 test('a failed subcommand stops the batch instead of reporting success', () => {
   const result = probe('editor-catalog', 23);
