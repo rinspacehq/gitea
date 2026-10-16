@@ -132,7 +132,12 @@ The operator must provision the `rinspace-native-release` docker-container
 builder inside that same dedicated engine with a reviewed immutable BuildKit
 image and serialized build configuration. `native-buildkit.toml` pins the
 reviewed upstream v0.34.0 image and limits OCI execution to one vertex at a
-time with a native snapshotter. The recipe refuses the default
+time with an overlayfs snapshotter. The operator must prove isolated overlay
+mount/write/copy-up support before bootstrap; there is no native-snapshotter
+fallback. Full-copy native snapshots amplified simple WORKDIR steps and
+exhausted the bounded scratch budget during a real build. The independent
+"native" CI transport does not require BuildKit's native filesystem driver.
+The recipe refuses the default
 docker driver, which cannot preserve the required OCI/attestation output.
 
 `native-receipt.mjs` defines a strict signed native statement and DSSE PAE

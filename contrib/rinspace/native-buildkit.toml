@@ -4,4 +4,4 @@
 # Reviewed upstream v0.34.0, source f5b59a1f2fb25a0cb7072c398cab9aed7835da4e.
 [worker.oci]
   max-parallelism = 1
-  snapshotter = "native"
+  snapshotter = "overlayfs"
