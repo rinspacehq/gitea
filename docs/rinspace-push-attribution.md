@@ -17,6 +17,11 @@ fully represent force-push cycles; these require incident review rather than
 inferring missing receives. Keep normal branch protections and do not use this
 metadata alone to authorize bulk reversal.
 
+Turning the flag off does not rewrite queued events. Before downgrading to an
+older sender that rejects attributed payloads, drain those events using a
+compatible sender or retain a compatible delivery component. Never strip actor
+fields, delete the outbox, or reset audit data to make a binary rollback pass.
+
 This is audit support only, not a complete anti-vandalism or user-reversal API.
 Product administration, per-user write containment, reviewed conflict handling,
 ordinary revert commits and exact publication completion belong to the host.
