@@ -21,6 +21,7 @@ import (
 
 func TestEnqueueRinspacePublicationPushEvents(t *testing.T) {
 	t.Setenv("RIN_CONTROL_PUBLICATION_EVENT_REPOSITORY_IDS", "none")
+	t.Setenv("RIN_CONTROL_PUSH_ATTRIBUTION_ENABLED", "true")
 	require.NoError(t, unittest.PrepareTestDatabase())
 	ctx := t.Context()
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
@@ -42,8 +43,8 @@ func TestEnqueueRinspacePublicationPushEvents(t *testing.T) {
 	after := strings.Repeat("b", 40)
 	preview := strings.Repeat("c", 40)
 	updates := []*repo_module.PushUpdateOptions{
-		{RefFullName: git.RefNameFromBranch("main"), OldCommitID: before, NewCommitID: after},
-		{RefFullName: git.RefNameFromBranch("preview"), OldCommitID: after, NewCommitID: preview},
+		{PusherID: 17, RefFullName: git.RefNameFromBranch("main"), OldCommitID: before, NewCommitID: after},
+		{PusherID: 18, RefFullName: git.RefNameFromBranch("preview"), OldCommitID: after, NewCommitID: preview},
 		{RefFullName: git.RefNameFromTag("v1"), OldCommitID: zero, NewCommitID: after},
 		{RefFullName: git.RefNameFromBranch("deleted"), OldCommitID: before, NewCommitID: zero},
 		{RefFullName: git.RefNameFromBranch("unchanged"), OldCommitID: after, NewCommitID: after},
@@ -54,6 +55,12 @@ func TestEnqueueRinspacePublicationPushEvents(t *testing.T) {
 	count, err := db.GetEngine(ctx).Where("event_type = ? AND repository_id = ?", "repository.push.completed", repo.ID).Count(new(rincontrol_model.OutboxEvent))
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, count)
+	for _, actor := range []int64{17, 18} {
+		count, err := db.GetEngine(ctx).Where("event_type = ? AND repository_id = ? AND actor_user_id = ?", "repository.push.completed", repo.ID, actor).Count(new(rincontrol_model.OutboxEvent))
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+	}
+	require.Error(t, EnqueueRinspacePublicationPushEvents(ctx, repo, []*repo_module.PushUpdateOptions{{RefFullName: git.RefNameFromBranch("main"), OldCommitID: after, NewCommitID: strings.Repeat("e", 40)}}))
 
 	_, err = db.Exec(ctx, `CREATE TRIGGER rin_control_publication_outbox_failure BEFORE INSERT ON rin_control_outbox BEGIN SELECT RAISE(FAIL, 'injected publication outbox failure'); END`)
 	require.NoError(t, err)
@@ -61,7 +68,7 @@ func TestEnqueueRinspacePublicationPushEvents(t *testing.T) {
 		_, _ = db.Exec(context.Background(), `DROP TRIGGER IF EXISTS rin_control_publication_outbox_failure`)
 	})
 	err = EnqueueRinspacePublicationPushEvents(ctx, repo, []*repo_module.PushUpdateOptions{{
-		RefFullName: git.RefNameFromBranch("main"), OldCommitID: after, NewCommitID: strings.Repeat("d", 40),
+		PusherID: 17, RefFullName: git.RefNameFromBranch("main"), OldCommitID: after, NewCommitID: strings.Repeat("d", 40),
 	}})
 	assert.Error(t, err)
 	_, err = db.Exec(ctx, `DROP TRIGGER rin_control_publication_outbox_failure`)

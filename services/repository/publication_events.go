@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	repo_model "gitea.dev/models/repo"
@@ -30,12 +31,22 @@ func EnqueueRinspacePublicationPushEvents(ctx context.Context, repo *repo_model.
 		if update == nil || !update.RefFullName.IsBranch() || update.IsDelRef() || update.OldCommitID == update.NewCommitID {
 			continue
 		}
+		var actor int64
+		if os.Getenv("RIN_CONTROL_PUSH_ATTRIBUTION_ENABLED") == "true" {
+			// Post-receive derives PusherID from authenticated HookOptions.UserID.
+			// Git author/committer fields and push options are not identity inputs.
+			if update.PusherID <= 0 {
+				return errors.New("managed push has no authenticated receive actor")
+			}
+			actor = update.PusherID
+		}
 		if err := rincontrol_model.EnqueueRepositoryPushEvent(ctx, rincontrol_model.RepositoryPushEvent{
 			RepositoryID: repo.ID,
 			Ref:          update.RefFullName.String(),
 			Before:       update.OldCommitID,
 			After:        update.NewCommitID,
 			OccurredAt:   occurredAt,
+			PusherUserID: actor,
 		}); err != nil {
 			return err
 		}

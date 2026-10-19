@@ -28,6 +28,7 @@ type RepositoryPushEvent struct {
 	Before       string
 	After        string
 	OccurredAt   time.Time
+	PusherUserID int64
 }
 
 type repositoryPushEnvelope struct {
@@ -51,6 +52,7 @@ type repositoryPushEventData struct {
 	Before       string `json:"before"`
 	After        string `json:"after"`
 	Commit       string `json:"commit"`
+	PusherUserID *int64 `json:"pusherUserId,omitempty"`
 }
 
 func RepositoryPushEventID(repositoryID int64, ref, after string) (string, error) {
@@ -68,6 +70,9 @@ func RepositoryPushEventID(repositoryID int64, ref, after string) (string, error
 }
 
 func BuildRepositoryPushOutboxEvent(input RepositoryPushEvent) (*OutboxEvent, error) {
+	if input.PusherUserID < 0 {
+		return nil, errors.New("push actor must be a positive Gitea user ID or unknown")
+	}
 	if !isRepositoryObjectID(input.Before) {
 		return nil, errors.New("before must be a lowercase object ID")
 	}
@@ -91,6 +96,10 @@ func BuildRepositoryPushOutboxEvent(input RepositoryPushEvent) (*OutboxEvent, er
 			After: input.After, Commit: input.After,
 		},
 	}
+	if input.PusherUserID > 0 {
+		actor := input.PusherUserID
+		envelope.Data.PusherUserID = &actor
+	}
 	payload, err := json.Marshal(envelope)
 	if err != nil {
 		return nil, err
@@ -98,13 +107,14 @@ func BuildRepositoryPushOutboxEvent(input RepositoryPushEvent) (*OutboxEvent, er
 	return &OutboxEvent{
 		EventID: eventID, EventType: repositoryPushEventType,
 		AggregateType: "repository", AggregateID: input.RepositoryID, RepositoryID: input.RepositoryID,
-		Payload: string(payload), State: OutboxStatePending,
+		ActorUserID: input.PusherUserID,
+		Payload:     string(payload), State: OutboxStatePending,
 		NextAttemptUnix: timeutil.TimeStamp(occurredAt.Unix()),
 	}, nil
 }
 
 // EnqueueRepositoryPushEvent durably inserts one event per repository/ref/tip.
-// Repeated notifications for the same deterministic identity are successful.
+// Repeated notifications preserve the recorded actor and source interval.
 func EnqueueRepositoryPushEvent(ctx context.Context, input RepositoryPushEvent) error {
 	event, err := BuildRepositoryPushOutboxEvent(input)
 	if err != nil {
@@ -123,6 +133,14 @@ func EnqueueRepositoryPushEvent(ctx context.Context, input RepositoryPushEvent) 
 		}
 		if validateErr := validateRepositoryPushOutboxEvent(stored); validateErr != nil || stored.RepositoryID != event.RepositoryID {
 			return ErrOutboxIdempotencyConflict
+		}
+		// Never overwrite or infer the actor of an already persisted tip.
+		// Attributed receives must also agree on their exact source interval.
+		if event.ActorUserID > 0 || stored.ActorUserID > 0 {
+			var previous, next repositoryPushEnvelope
+			if json.Unmarshal([]byte(stored.Payload), &previous) != nil || json.Unmarshal([]byte(event.Payload), &next) != nil || stored.ActorUserID != event.ActorUserID || previous.Data.Before != next.Data.Before {
+				return ErrOutboxIdempotencyConflict
+			}
 		}
 		return nil
 	}
@@ -174,7 +192,7 @@ func isZeroRepositoryObjectID(value string) bool {
 }
 
 func validateRepositoryPushOutboxEvent(event *OutboxEvent) error {
-	if event.EventType != repositoryPushEventType || event.AggregateType != "repository" || event.AggregateID <= 0 || event.RepositoryID != event.AggregateID || event.ActorUserID != 0 || event.TargetUserID != 0 {
+	if event.EventType != repositoryPushEventType || event.AggregateType != "repository" || event.AggregateID <= 0 || event.RepositoryID != event.AggregateID || event.ActorUserID < 0 || event.TargetUserID != 0 {
 		return errors.New("repository push outbox identity is invalid")
 	}
 	var envelope repositoryPushEnvelope
@@ -184,6 +202,18 @@ func validateRepositoryPushOutboxEvent(event *OutboxEvent) error {
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return errors.New("repository push envelope contains trailing JSON")
+	}
+	if (envelope.Data.PusherUserID == nil && event.ActorUserID != 0) || (envelope.Data.PusherUserID != nil && (*envelope.Data.PusherUserID <= 0 || *envelope.Data.PusherUserID != event.ActorUserID)) {
+		return errors.New("repository push authenticated actor is inconsistent")
+	}
+	var presence struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(event.Payload), &presence); err != nil {
+		return err
+	}
+	if value, exists := presence.Data["pusherUserId"]; exists && value == nil {
+		return errors.New("unknown push attribution must be omitted, not null")
 	}
 	if envelope.Schema != EventSchemaV1 || envelope.EventID != event.EventID || envelope.Type != repositoryPushEventType || envelope.Producer != "gitea" || envelope.CorrelationID != event.EventID || envelope.Subject.RepositoryID != event.RepositoryID || envelope.Data.RepositoryID != event.RepositoryID || envelope.Data.After != envelope.Data.Commit {
 		return errors.New("repository push envelope identity is inconsistent")
