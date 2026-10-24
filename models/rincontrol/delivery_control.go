@@ -23,15 +23,18 @@ const (
 	DeliveryStateEnabled       = "enabled"
 	DeliveryStatePaused        = "paused"
 	MaxDeliveryPause           = 15 * time.Minute
+	TagIdentityCutoverReason   = "tag_identity_cutover"
+	MaxTagIdentityCutoverPause = 2 * time.Hour
 )
 
 var (
 	ErrDeliveryControlConflict = errors.New("Rin Control delivery maintenance change conflicts with persisted state")
 	changeIDPattern            = regexp.MustCompile(`^RCP-[A-Z0-9][A-Z0-9._-]{5,119}$`)
 	allowedDeliveryReasons     = map[string]struct{}{
-		"credential_rotation":  {},
-		"incident_containment": {},
-		"protocol_isolation":   {},
+		"credential_rotation":    {},
+		"incident_containment":   {},
+		"protocol_isolation":     {},
+		TagIdentityCutoverReason: {},
 	}
 )
 
@@ -165,7 +168,8 @@ func effectivePublicationDeliveryControl(ctx context.Context, now time.Time) (*D
 	if err != nil {
 		return nil, err
 	}
-	if control.State != DeliveryStatePaused || int64(control.PausedUntilUnix) > now.Unix() {
+	// Identity cutover stays paused until the same change explicitly resumes it.
+	if control.State != DeliveryStatePaused || control.ReasonCode == TagIdentityCutoverReason || int64(control.PausedUntilUnix) > now.Unix() {
 		return control, nil
 	}
 	requestHash := deliveryRequestHash("auto_resume", control.ChangeID, strconv.FormatInt(now.Unix(), 10))
@@ -223,9 +227,16 @@ func validatePauseDeliveryRequest(request PauseDeliveryRequest, now time.Time) (
 	if _, ok := allowedDeliveryReasons[request.ReasonCode]; !ok {
 		return "", errors.New("Rin Control delivery maintenance reason is invalid")
 	}
+	maxPause := MaxDeliveryPause
+	if request.ReasonCode == TagIdentityCutoverReason {
+		if !strings.HasPrefix(request.ChangeID, "RCP-TAG-ID-") {
+			return "", errors.New("Rin Control Tag identity cutover change ID is invalid")
+		}
+		maxPause = MaxTagIdentityCutoverPause
+	}
 	until := request.Until.UTC()
-	if until.Unix() <= now.Unix() || until.Sub(now) > MaxDeliveryPause {
-		return "", errors.New("Rin Control delivery maintenance deadline must be in the future and at most 15 minutes")
+	if until.Unix() <= now.Unix() || until.Sub(now) > maxPause {
+		return "", fmt.Errorf("Rin Control delivery maintenance deadline must be in the future and at most %s", maxPause)
 	}
 	return deliveryRequestHash("pause", request.ChangeID, request.ReasonCode, strconv.FormatInt(until.Unix(), 10)), nil
 }

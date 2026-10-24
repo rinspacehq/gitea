@@ -59,6 +59,12 @@ when its service configuration is missing or invalid.
 The Control Plane remains a separate service. Its endpoint contract, secret
 distribution, alerts, and production policy belong to the consuming deployment.
 
+Ordinary publication maintenance pauses expire after at most 15 minutes. A
+`tag_identity_cutover` pause requires an `RCP-TAG-ID-*` change ID and allows a
+two-hour monitoring deadline. It remains paused after that deadline until the
+same change ID explicitly resumes it, so an interrupted identity migration
+cannot resume publication delivery against partially migrated repositories.
+
 ## Data and migrations
 
 The first Rinspace line adds Gitea migrations 343 through 348. Test upgrades on

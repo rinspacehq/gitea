@@ -60,6 +60,54 @@ func TestPublicationDeliveryMaintenanceLeaseValidationAndIdempotency(t *testing.
 	assert.ErrorIs(t, err, ErrDeliveryControlConflict)
 }
 
+func TestTagIdentityCutoverDeliveryPauseFailsClosed(t *testing.T) {
+	require.NoError(t, unittest.PrepareTestDatabase())
+	_, err := db.GetEngine(t.Context()).Where("1 = 1").Delete(new(DeliveryControl))
+	require.NoError(t, err)
+	_, err = db.GetEngine(t.Context()).Where("1 = 1").Delete(new(OutboxEvent))
+	require.NoError(t, err)
+	now := time.Unix(1_800_000_000, 0).UTC()
+	request := PauseDeliveryRequest{
+		ChangeID: "RCP-TAG-ID-20261024", ReasonCode: TagIdentityCutoverReason,
+		Until: now.Add(MaxTagIdentityCutoverPause),
+	}
+	_, err = PausePublicationDelivery(t.Context(), PauseDeliveryRequest{
+		ChangeID: "RCP-OTHER-20261024", ReasonCode: TagIdentityCutoverReason,
+		Until: request.Until,
+	}, now)
+	require.Error(t, err)
+	_, err = PausePublicationDelivery(t.Context(), PauseDeliveryRequest{
+		ChangeID: request.ChangeID, ReasonCode: TagIdentityCutoverReason,
+		Until: request.Until.Add(time.Second),
+	}, now)
+	require.Error(t, err)
+
+	paused, err := PausePublicationDelivery(t.Context(), request, now)
+	require.NoError(t, err)
+	assert.Equal(t, DeliveryStatePaused, paused.State)
+	assert.Equal(t, TagIdentityCutoverReason, paused.ReasonCode)
+
+	afterDeadline := now.Add(MaxTagIdentityCutoverPause + time.Hour)
+	stillPaused, err := GetPublicationDeliveryControl(t.Context(), afterDeadline)
+	require.NoError(t, err)
+	assert.Equal(t, DeliveryStatePaused, stillPaused.State)
+	assert.Equal(t, paused.Version, stillPaused.Version)
+	publication, err := BuildRepositoryPushOutboxEvent(RepositoryPushEvent{
+		RepositoryID: 42, Ref: "refs/heads/main", Before: strings.Repeat("a", 40),
+		After: strings.Repeat("b", 40), OccurredAt: now,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Insert(t.Context(), publication))
+	blocked, err := ClaimDueOutboxEvent(t.Context(), afterDeadline, 10*time.Second)
+	require.NoError(t, err)
+	assert.Nil(t, blocked)
+	_, err = ResumePublicationDelivery(t.Context(), "RCP-TAG-ID-OTHER", afterDeadline)
+	assert.ErrorIs(t, err, ErrDeliveryControlConflict)
+	resumed, err := ResumePublicationDelivery(t.Context(), request.ChangeID, afterDeadline)
+	require.NoError(t, err)
+	assert.Equal(t, DeliveryStateEnabled, resumed.State)
+}
+
 func TestPublicationDeliveryPauseSkipsOnlyPublicationAndAutoResumes(t *testing.T) {
 	require.NoError(t, unittest.PrepareTestDatabase())
 	_, err := db.GetEngine(t.Context()).Where("1 = 1").Delete(new(DeliveryControl))
